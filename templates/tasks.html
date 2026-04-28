@@ -1,0 +1,575 @@
+{% extends "base.html" %}
+{% block content %}
+{% set failed_tasks = tasks|selectattr('last_status', 'equalto', 'failed')|list %}
+{% set never_run_tasks = tasks|rejectattr('last_run_at')|list %}
+{% macro task_select_option(value, label, icon, selected_value) -%}
+<button type="button" class="group-icon-option{% if (selected_value|string) == (value|string) %} is-selected{% endif %}" data-select-value="{{ value }}" data-select-label="{{ label }}" data-select-icon="{{ icon }}">
+    <i class="ph ph-{{ icon }}"></i>
+    <span>{{ label }}</span>
+</button>
+{%- endmacro %}
+
+<!-- 筛选区域 -->
+<section class="filter-section">
+    <form method="get" action="{{ url_for('tasks_page') }}" class="form-grid">
+        <label>
+            <span><i class="ph ph-magnifying-glass"></i> 关键词</span>
+            <input type="text" name="q" value="{{ filter_q or '' }}" placeholder="搜索标题、内容、URL、Cron">
+        </label>
+        <label>
+            <span><i class="ph ph-funnel"></i> 渠道</span>
+            <div class="group-icon-select task-custom-select" data-custom-select>
+                {% set channel_label = '邮件' if filter_channel == 'email' else 'Webhook' if filter_channel == 'webhook' else '全部' %}
+                {% set channel_icon = 'envelope-simple' if filter_channel == 'email' else 'webhook' if filter_channel == 'webhook' else 'squares-four' %}
+                <button type="button" class="group-icon-trigger">
+                    <span class="group-icon-trigger-content">
+                        <i class="ph ph-{{ channel_icon }}"></i>
+                        <span>{{ channel_label }}</span>
+                    </span>
+                    <i class="ph ph-caret-down"></i>
+                </button>
+                <input type="hidden" name="channel" value="{{ filter_channel or '' }}">
+                <div class="group-icon-menu">
+                    {{ task_select_option('', '全部', 'squares-four', filter_channel or '') }}
+                    {{ task_select_option('email', '邮件', 'envelope-simple', filter_channel or '') }}
+                    {{ task_select_option('webhook', 'Webhook', 'webhook', filter_channel or '') }}
+                </div>
+            </div>
+        </label>
+        <label>
+            <span><i class="ph ph-list"></i> 状态</span>
+            <div class="group-icon-select task-custom-select" data-custom-select>
+                {% set enabled_label = '已启用' if filter_enabled == 'enabled' else '已停用' if filter_enabled == 'disabled' else '全部' %}
+                {% set enabled_icon = 'check-circle' if filter_enabled == 'enabled' else 'pause-circle' if filter_enabled == 'disabled' else 'squares-four' %}
+                <button type="button" class="group-icon-trigger">
+                    <span class="group-icon-trigger-content">
+                        <i class="ph ph-{{ enabled_icon }}"></i>
+                        <span>{{ enabled_label }}</span>
+                    </span>
+                    <i class="ph ph-caret-down"></i>
+                </button>
+                <input type="hidden" name="enabled" value="{{ filter_enabled or '' }}">
+                <div class="group-icon-menu">
+                    {{ task_select_option('', '全部', 'squares-four', filter_enabled or '') }}
+                    {{ task_select_option('enabled', '已启用', 'check-circle', filter_enabled or '') }}
+                    {{ task_select_option('disabled', '已停用', 'pause-circle', filter_enabled or '') }}
+                </div>
+            </div>
+        </label>
+        <label>
+            <span><i class="ph ph-warning-circle"></i> 最近结果</span>
+            <div class="group-icon-select task-custom-select" data-custom-select>
+                {% set status_label = '仅看失败' if filter_last_status == 'failed' else '全部' %}
+                {% set status_icon = 'warning-octagon' if filter_last_status == 'failed' else 'squares-four' %}
+                <button type="button" class="group-icon-trigger">
+                    <span class="group-icon-trigger-content">
+                        <i class="ph ph-{{ status_icon }}"></i>
+                        <span>{{ status_label }}</span>
+                    </span>
+                    <i class="ph ph-caret-down"></i>
+                </button>
+                <input type="hidden" name="last_status" value="{{ filter_last_status or '' }}">
+                <div class="group-icon-menu">
+                    {{ task_select_option('', '全部', 'squares-four', filter_last_status or '') }}
+                    {{ task_select_option('failed', '仅看失败', 'warning-octagon', filter_last_status or '') }}
+                </div>
+            </div>
+        </label>
+        <label>
+            <span><i class="ph ph-folders"></i> 分组</span>
+            <div class="group-icon-select task-custom-select" data-custom-select>
+                {% set filter_group = namespace(label='全部分组', icon='folders') %}
+                {% for group in groups %}
+                    {% if filter_group_id == (group.id|string) %}
+                        {% set filter_group.label = group.name %}
+                        {% set filter_group.icon = group.icon %}
+                    {% endif %}
+                {% endfor %}
+                <button type="button" class="group-icon-trigger">
+                    <span class="group-icon-trigger-content">
+                        <i class="ph ph-{{ filter_group.icon }}"></i>
+                        <span>{{ filter_group.label }}</span>
+                    </span>
+                    <i class="ph ph-caret-down"></i>
+                </button>
+                <input type="hidden" name="group_id" value="{{ filter_group_id or '' }}">
+                <div class="group-icon-menu">
+                    {{ task_select_option('', '全部分组', 'folders', filter_group_id or '') }}
+                    {% for group in groups %}
+                    {{ task_select_option(group.id, group.name, group.icon, filter_group_id or '') }}
+                    {% endfor %}
+                </div>
+            </div>
+        </label>
+        <button type="submit" class="primary">
+            <i class="ph ph-magnifying-glass"></i> 查询
+        </button>
+        <a class="btn-link" href="{{ url_for('tasks_page') }}">
+            <i class="ph ph-arrow-counter-clockwise"></i> 重置
+        </a>
+    </form>
+</section>
+
+<section class="panel task-triage-panel">
+    <div class="panel-header panel-header-stack">
+        <div>
+            <h2><i class="ph ph-siren"></i> 快速排查</h2>
+            <p class="panel-description">先看失败任务，再看还没跑过的任务，能更快发现配置或调度问题。</p>
+        </div>
+        <div class="dashboard-hero-actions">
+            <a class="btn-link {{ 'active-filter-chip' if filter_last_status == 'failed' else '' }}" href="{{ url_for('tasks_page', q=filter_q, channel=filter_channel, enabled=filter_enabled, last_status='failed', group_id=filter_group_id) }}">
+                <i class="ph ph-warning-octagon"></i> 只看失败任务
+            </a>
+        </div>
+    </div>
+    <div class="task-triage-grid">
+        <article class="task-triage-card {{ 'danger' if failed_tasks else 'ok' }}">
+            <span class="task-triage-label">最近失败</span>
+            <strong>{{ failed_tasks|length }}</strong>
+            <p>{% if failed_tasks %}当前筛选结果中有失败任务，建议优先展开查看错误信息。{% else %}当前筛选结果中没有失败任务。{% endif %}</p>
+        </article>
+        <article class="task-triage-card {{ 'warn' if never_run_tasks else 'ok' }}">
+            <span class="task-triage-label">尚未执行</span>
+            <strong>{{ never_run_tasks|length }}</strong>
+            <p>{% if never_run_tasks %}这些任务还没有执行记录，建议确认 Cron 和启用状态。{% else %}当前任务都已有执行记录。{% endif %}</p>
+        </article>
+        <article class="task-triage-card">
+            <span class="task-triage-label">快速建议</span>
+            <strong>先看红色卡片</strong>
+            <p>任务卡片已对最近失败项做高亮处理，历史记录入口可继续排查执行详情。</p>
+        </article>
+    </div>
+</section>
+
+<!-- 创建任务 -->
+<section class="panel">
+    <div class="panel-header panel-header-stack">
+        <div>
+            <h2><i class="ph ph-plus-circle"></i> 创建新任务</h2>
+            <p class="panel-description">填写名称、Cron 和发送渠道即可创建；内容与链接可按需补充。</p>
+        </div>
+    </div>
+    {% set can_create_task = groups|length > 0 %}
+    <form method="post" action="{{ url_for('create_task_route') }}" class="form-grid task-create-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if not can_create_task %}
+        <p class="help-text">请先创建分组，再回来创建任务。</p>
+        {% endif %}
+        <label>
+            <span><i class="ph ph-text-t"></i> 任务名称</span>
+            <input type="text" name="title" required placeholder="任务名称" {% if not can_create_task %}disabled{% endif %}>
+            <small class="help-text">建议用可识别的场景命名，例如“月末账单提醒”。</small>
+        </label>
+        <label>
+            <span><i class="ph ph-align-left"></i> 内容</span>
+            <input type="text" name="message" placeholder="发送的消息内容" {% if not can_create_task %}disabled{% endif %}>
+            <small class="help-text">留空也可；适合填写提醒正文或简短说明。</small>
+        </label>
+        <label>
+            <span><i class="ph ph-link"></i> URL</span>
+            <input type="text" name="url" placeholder="https://..." {% if not can_create_task %}disabled{% endif %}>
+            <small class="help-text">可附带待处理链接，例如文档、工单或系统地址。</small>
+        </label>
+        <label>
+            <span><i class="ph ph-clock"></i> Cron 表达式</span>
+            <input type="text" name="cron_expression" required placeholder="0 10,21 28 * *" {% if not can_create_task %}disabled{% endif %}>
+            <small class="help-text">示例：<code>0 9 * * 1-5</code> 表示工作日 09:00 执行。</small>
+        </label>
+        <label>
+            <span><i class="ph ph-paper-plane-tilt"></i> 发送渠道</span>
+            <div class="group-icon-select task-custom-select" data-custom-select>
+                <button type="button" class="group-icon-trigger" {% if not can_create_task %}disabled{% endif %}>
+                    <span class="group-icon-trigger-content">
+                        <i class="ph ph-envelope-simple"></i>
+                        <span>邮件</span>
+                    </span>
+                    <i class="ph ph-caret-down"></i>
+                </button>
+                <input type="hidden" name="channel" value="email" required {% if not can_create_task %}disabled{% endif %}>
+                <div class="group-icon-menu">
+                    {{ task_select_option('email', '邮件', 'envelope-simple', 'email') }}
+                    {{ task_select_option('webhook', 'Webhook', 'webhook', 'email') }}
+                </div>
+            </div>
+            <small class="help-text">邮件适合人工提醒，Webhook 适合集成外部系统。</small>
+        </label>
+        {% if can_create_task %}
+        <label>
+            <span><i class="ph ph-folders"></i> 分组</span>
+            <div class="group-icon-select task-custom-select" data-custom-select>
+                <button type="button" class="group-icon-trigger">
+                    <span class="group-icon-trigger-content">
+                        <i class="ph ph-{{ groups[0].icon }}"></i>
+                        <span>{{ groups[0].name }}</span>
+                    </span>
+                    <i class="ph ph-caret-down"></i>
+                </button>
+                <input type="hidden" name="group_id" value="{{ groups[0].id }}" required>
+                <div class="group-icon-menu">
+                    {% for group in groups %}
+                    {{ task_select_option(group.id, group.name, group.icon, groups[0].id) }}
+                    {% endfor %}
+                </div>
+            </div>
+            <small class="help-text">每个任务必须归属一个分组。</small>
+        </label>
+        <div class="compact-toggle-field">
+            <span><i class="ph ph-toggle-right"></i> 启用状态</span>
+            <label class="switch">
+                <input type="checkbox" name="enabled" value="1" checked {% if not can_create_task %}disabled{% endif %}>
+                <span class="slider"></span>
+            </label>
+            <small class="help-text">开启后任务会按 Cron 表达式自动调度。</small>
+        </div>
+        {% else %}
+        <div class="compact-toggle-field">
+            <span><i class="ph ph-toggle-right"></i> 启用状态</span>
+            <label class="switch">
+                <input type="checkbox" name="enabled" value="1" checked {% if not can_create_task %}disabled{% endif %}>
+                <span class="slider"></span>
+            </label>
+            <small class="help-text">创建分组后即可启用任务调度。</small>
+        </div>
+        {% endif %}
+        <div class="actions-inline task-form-actions">
+            <button type="submit" class="primary" {% if not can_create_task %}disabled{% endif %}>
+                <i class="ph ph-check"></i> 创建任务
+            </button>
+        </div>
+    </form>
+</section>
+
+<div class="section-divider">
+    <i class="ph ph-list-dashes"></i> 任务列表</div>
+
+<section class="panel batch-panel">
+    <div class="panel-header panel-header-stack batch-panel-header">
+        <div>
+            <h2><i class="ph ph-stack"></i> 批量操作</h2>
+            <p class="panel-description">先勾选任务，再统一启用、停用或删除。</p>
+        </div>
+        <span class="selection-count" id="selectionCount">已选择 0 项</span>
+    </div>
+    <div class="batch-toolbar">
+        <label class="checkbox select-all-toggle">
+            <input type="checkbox" id="selectAllTasks">
+            <span>全选当前列表</span>
+        </label>
+        <div class="actions-inline batch-actions">
+            <button type="button" class="btn-link batch-action-btn" data-batch-action="enable" onclick="submitBatchAction('enable')" disabled>
+                <i class="ph ph-check-circle"></i> 批量启用
+            </button>
+            <button type="button" class="btn-link batch-action-btn" data-batch-action="disable" onclick="submitBatchAction('disable')" disabled>
+                <i class="ph ph-pause-circle"></i> 批量停用
+            </button>
+            <button type="button" class="btn-link danger-text batch-action-btn" data-batch-action="delete" onclick="submitBatchAction('delete', true)" disabled>
+                <i class="ph ph-trash"></i> 批量删除
+            </button>
+        </div>
+    </div>
+    <form id="batchActionForm" method="post" action="{{ url_for('batch_operations') }}" class="hidden-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="action" id="batchActionInput">
+        <input type="hidden" name="task_ids" id="batchTaskIdsInput">
+    </form>
+</section>
+
+<!-- 任务列表 -->
+{% if tasks %}
+    {% for task in tasks %}
+    <article class="task-card {{ 'task-card-failed' if task.last_status == 'failed' else '' }}" id="task-{{ task.id }}" data-task-id="{{ task.id }}">
+        <div class="task-select-row">
+            <label class="checkbox">
+                <input type="checkbox" class="task-selector" value="{{ task.id }}" onclick="event.stopPropagation(); updateBatchToolbar();">
+                <span>选择任务 #{{ task.id }}</span>
+            </label>
+            <a class="btn-link" href="{{ url_for('task_history', task_id=task.id) }}" onclick="event.stopPropagation();">
+                <i class="ph ph-clock-counter-clockwise"></i> 历史记录
+            </a>
+        </div>
+        <div class="task-card-header" onclick="toggleTaskCard('{{ task.id }}')">
+            <div class="task-card-main">
+                <div class="task-card-title-row">
+                    <span class="expand-icon"><i class="ph ph-caret-down"></i></span>
+                    <h3>{{ task.title }}</h3>
+                </div>
+                <div class="task-card-badges">
+                    <span class="group-badge">
+                        <i class="ph ph-{{ task.group_icon or 'folder' }}"></i>
+                        {{ task.group_name or '默认' }}
+                    </span>
+                    <span class="tag {{ 'email' if task.channel == 'email' else 'webhook' }}">
+                        <i class="ph ph-{{ 'envelope-simple' if task.channel == 'email' else 'webhook' }}"></i>
+                        {{ "邮件" if task.channel == 'email' else "Webhook" }}
+                    </span>
+                    <span class="status-badge {{ 'ok' if task.enabled else 'warn' }}">
+                        <i class="ph ph-{{ 'check-circle' if task.enabled else 'pause-circle' }}"></i>
+                        {{ "启用" if task.enabled else "停用" }}
+                    </span>
+                    {% if task.last_status == 'success' %}
+                        <span class="status-badge ok">
+                            <i class="ph ph-check-circle"></i>
+                            最近成功
+                        </span>
+                    {% elif task.last_status == 'failed' %}
+                        <span class="status-badge danger">
+                            <i class="ph ph-x-circle"></i>
+                            最近失败
+                        </span>
+                    {% else %}
+                        <span class="status-badge muted">未执行</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="task-card-meta task-card-meta-grid">
+                <span class="task-meta-item">
+                    <span class="task-meta-label"><i class="ph ph-clock"></i> 下次执行</span>
+                    <strong>{{ task.next_run_time or '-' }}</strong>
+                </span>
+                <span class="task-meta-item">
+                    <span class="task-meta-label"><i class="ph ph-timer"></i> 最近执行</span>
+                    <strong>{{ task.last_run_at or '-' }}</strong>
+                </span>
+            </div>
+        </div>
+        <div class="task-card-body">
+            <form method="post" action="{{ url_for('update_task', task_id=task.id) }}" class="form-grid compact task-edit-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label>
+                    <span><i class="ph ph-text-t"></i> 任务名称</span>
+                    <input type="text" name="title" value="{{ task.title }}" required>
+                </label>
+                <label>
+                    <span><i class="ph ph-align-left"></i> 内容</span>
+                    <input type="text" name="message" value="{{ task.message or '' }}">
+                </label>
+                <label>
+                    <span><i class="ph ph-link"></i> URL</span>
+                    <input type="text" name="url" value="{{ task.url or '' }}">
+                </label>
+                <label>
+                    <span><i class="ph ph-clock"></i> Cron</span>
+                    <input type="text" name="cron_expression" value="{{ task.cron_expression }}" required>
+                </label>
+                <label>
+                    <span><i class="ph ph-paper-plane-tilt"></i> 渠道</span>
+                    <div class="group-icon-select task-custom-select" data-custom-select>
+                        {% set task_channel_label = '邮件' if task.channel == 'email' else 'Webhook' %}
+                        {% set task_channel_icon = 'envelope-simple' if task.channel == 'email' else 'webhook' %}
+                        <button type="button" class="group-icon-trigger">
+                            <span class="group-icon-trigger-content">
+                                <i class="ph ph-{{ task_channel_icon }}"></i>
+                                <span>{{ task_channel_label }}</span>
+                            </span>
+                            <i class="ph ph-caret-down"></i>
+                        </button>
+                        <input type="hidden" name="channel" value="{{ task.channel }}" required>
+                        <div class="group-icon-menu">
+                            {{ task_select_option('email', '邮件', 'envelope-simple', task.channel) }}
+                            {{ task_select_option('webhook', 'Webhook', 'webhook', task.channel) }}
+                        </div>
+                    </div>
+                </label>
+                <label>
+                    <span><i class="ph ph-folders"></i> 分组</span>
+                    <div class="group-icon-select task-custom-select" data-custom-select>
+                        <button type="button" class="group-icon-trigger">
+                            <span class="group-icon-trigger-content">
+                                <i class="ph ph-{{ task.group_icon or 'folder' }}"></i>
+                                <span>{{ task.group_name or '默认' }}</span>
+                            </span>
+                            <i class="ph ph-caret-down"></i>
+                        </button>
+                        <input type="hidden" name="group_id" value="{{ task.group_id }}" required>
+                        <div class="group-icon-menu">
+                            {% for group in groups %}
+                            {{ task_select_option(group.id, group.name, group.icon, task.group_id) }}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </label>
+                <div class="compact-toggle-field">
+                    <span><i class="ph ph-toggle-right"></i> 启用状态</span>
+                    <label class="switch">
+                        <input type="checkbox" name="enabled" value="1" {% if task.enabled %}checked{% endif %}>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="actions-inline task-form-actions">
+                    <button type="submit" class="primary btn-action">
+                        <i class="ph ph-floppy-disk"></i> 保存
+                    </button>
+                    <button type="button" class="btn-action btn-info"
+                            onclick="event.stopPropagation(); runTask('{{ task.id }}');">
+                        <i class="ph ph-play"></i> 立即执行
+                    </button>
+                    <button type="button" class="btn-action btn-danger"
+                            onclick="event.stopPropagation(); if(confirm('确认删除该任务？')) deleteTask('{{ task.id }}');">
+                        <i class="ph ph-trash"></i> 删除
+                    </button>
+                </div>
+            </form>
+            {% if task.last_error %}
+            <p class="error-line">
+                <i class="ph ph-warning-circle"></i>
+                错误：{{ task.last_error }}
+            </p>
+            {% endif %}
+        </div>
+    </article>
+    {% endfor %}
+{% else %}
+<section class="panel">
+    <div class="empty-state">
+        <i class="ph ph-inbox empty-state-icon"></i>
+        <p>没有符合条件的任务</p>
+    </div>
+</section>
+{% endif %}
+
+<script>
+function toggleTaskCard(taskId) {
+    const card = document.getElementById('task-' + taskId);
+    card.classList.toggle('collapsed');
+}
+
+function getSelectedTaskIds() {
+    return Array.from(document.querySelectorAll('.task-selector:checked')).map((input) => input.value);
+}
+
+function updateBatchToolbar() {
+    const taskIds = getSelectedTaskIds();
+    const count = taskIds.length;
+    const selectionCount = document.getElementById('selectionCount');
+    const batchButtons = document.querySelectorAll('.batch-action-btn');
+    const allSelectors = Array.from(document.querySelectorAll('.task-selector'));
+    const selectAllTasks = document.getElementById('selectAllTasks');
+
+    if (selectionCount) {
+        selectionCount.textContent = '已选择 ' + count + ' 项';
+        selectionCount.classList.toggle('active', count > 0);
+    }
+
+    batchButtons.forEach((button) => {
+        button.disabled = count === 0;
+    });
+
+    if (selectAllTasks) {
+        selectAllTasks.checked = allSelectors.length > 0 && count === allSelectors.length;
+        selectAllTasks.indeterminate = count > 0 && count < allSelectors.length;
+    }
+}
+
+function submitBatchAction(action, requiresConfirm = false) {
+    const taskIds = getSelectedTaskIds();
+    if (!taskIds.length) {
+        alert('请先选择至少一个任务');
+        return;
+    }
+    if (requiresConfirm && !confirm('确认执行该批量操作？')) {
+        return;
+    }
+
+    document.getElementById('batchActionInput').value = action;
+    document.getElementById('batchTaskIdsInput').value = taskIds.join(',');
+    document.getElementById('batchActionForm').submit();
+}
+
+const selectAllTasks = document.getElementById('selectAllTasks');
+if (selectAllTasks) {
+    selectAllTasks.addEventListener('change', function () {
+        document.querySelectorAll('.task-selector').forEach((input) => {
+            input.checked = selectAllTasks.checked;
+        });
+        updateBatchToolbar();
+    });
+}
+
+document.querySelectorAll('.task-selector').forEach((input) => {
+    input.addEventListener('change', updateBatchToolbar);
+});
+
+updateBatchToolbar();
+
+document.querySelectorAll('[data-custom-select]').forEach((selectRoot) => {
+    const trigger = selectRoot.querySelector('.group-icon-trigger');
+    const hiddenInput = selectRoot.querySelector('input[type="hidden"]');
+    const options = Array.from(selectRoot.querySelectorAll('.group-icon-option'));
+
+    function closeOtherSelects() {
+        document.querySelectorAll('[data-custom-select].is-open').forEach((item) => {
+            if (item !== selectRoot) {
+                item.classList.remove('is-open');
+            }
+        });
+    }
+
+    function setSelected(option) {
+        if (!option || !hiddenInput || !trigger) {
+            return;
+        }
+
+        hiddenInput.value = option.dataset.selectValue;
+        options.forEach((item) => item.classList.toggle('is-selected', item === option));
+        trigger.querySelector('.group-icon-trigger-content').innerHTML =
+            '<i class="ph ph-' + option.dataset.selectIcon + '"></i><span>' + option.dataset.selectLabel + '</span>';
+    }
+
+    if (!trigger || trigger.disabled) {
+        return;
+    }
+
+    trigger.addEventListener('click', function (event) {
+        event.preventDefault();
+        closeOtherSelects();
+        selectRoot.classList.toggle('is-open');
+    });
+
+    options.forEach((option) => {
+        option.addEventListener('click', function (event) {
+            event.preventDefault();
+            setSelected(option);
+            selectRoot.classList.remove('is-open');
+        });
+    });
+});
+
+document.addEventListener('click', function (event) {
+    document.querySelectorAll('[data-custom-select].is-open').forEach((selectRoot) => {
+        if (!selectRoot.contains(event.target)) {
+            selectRoot.classList.remove('is-open');
+        }
+    });
+});
+
+function runTask(taskId) {
+    const form = document.createElement('form');
+    form.method = 'post';
+    form.action = '/tasks/' + taskId + '/run';
+
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrf_token';
+    csrfInput.value = '{{ csrf_token }}';
+
+    form.appendChild(csrfInput);
+    document.body.appendChild(form);
+    form.submit();
+}
+
+function deleteTask(taskId) {
+    const form = document.createElement('form');
+    form.method = 'post';
+    form.action = '/tasks/' + taskId + '/delete';
+
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrf_token';
+    csrfInput.value = '{{ csrf_token }}';
+
+    form.appendChild(csrfInput);
+    document.body.appendChild(form);
+    form.submit();
+}
+</script>
+{% endblock %}

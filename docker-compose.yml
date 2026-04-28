@@ -1,0 +1,26 @@
+services:
+  unified-task-app:
+    container_name: unified-task-app
+    pull_policy: never
+    build: .
+    image: unified-task-app:latest
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - TZ=Asia/Shanghai
+      - APP_TIMEZONE=Asia/Shanghai
+      - SECRET_KEY=change-this-secret
+      - HOST=0.0.0.0
+      - PORT=8000
+      - DATA_DIR=/app/data
+      - LOG_DIR=/app/logs
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - common_bridge_net
+
+networks:
+  common_bridge_net:
+    external: true

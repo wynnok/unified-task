@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block content %}
+{% set failed_recent = recent|selectattr('last_status', 'equalto', 'failed')|list %}
+{% set never_run_recent = recent|rejectattr('last_run_at')|list %}
+
+<section class="panel dashboard-hero">
+    <div class="panel-header panel-header-stack">
+        <div>
+            <h2><i class="ph ph-house-line"></i> 控制台概览</h2>
+            <p class="panel-description">优先看失败任务、未执行任务和调度器状态。</p>
+        </div>
+        <div class="dashboard-hero-actions">
+            <a class="btn-link" href="{{ url_for('tasks_page') }}">
+                <i class="ph ph-list-dashes"></i> 管理任务
+            </a>
+            <a class="btn-link" href="{{ url_for('monitoring') }}">
+                <i class="ph ph-chart-line"></i> 查看监控
+            </a>
+        </div>
+    </div>
+    <div class="dashboard-alert-grid">
+        <article class="dashboard-alert-card {{ 'danger' if failed_recent else 'ok' }}">
+            <span class="dashboard-alert-label">失败提醒</span>
+            <strong>{{ failed_recent|length }}</strong>
+            <p>{% if failed_recent %}最近任务中存在失败记录，建议优先查看任务详情与历史。{% else %}最近任务中没有失败记录，运行状态正常。{% endif %}</p>
+        </article>
+        <article class="dashboard-alert-card {{ 'warn' if never_run_recent else 'ok' }}">
+            <span class="dashboard-alert-label">未执行任务</span>
+            <strong>{{ never_run_recent|length }}</strong>
+            <p>{% if never_run_recent %}最近任务里有尚未执行的任务，建议确认 Cron 与启用状态。{% else %}最近任务都已有执行记录。{% endif %}</p>
+        </article>
+        <article class="dashboard-alert-card {{ 'ok' if scheduler.running else 'warn' }}">
+            <span class="dashboard-alert-label">调度器状态</span>
+            <strong>{{ '运行中' if scheduler.running else '已停止' }}</strong>
+            <p>{% if scheduler.running %}后台调度器正常运行，任务会按计划自动触发。{% else %}调度器当前未运行，自动任务不会执行。{% endif %}</p>
+        </article>
+    </div>
+</section>
+
+<section class="cards">
+    <article class="card">
+        <h2><i class="ph ph-clipboard-text"></i> 任务总数</h2>
+        <p>{{ stats.total or 0 }}</p>
+    </article>
+    <article class="card">
+        <h2><i class="ph ph-check-circle"></i> 已启用</h2>
+        <p>{{ stats.enabled or 0 }}</p>
+    </article>
+    <article class="card">
+        <h2><i class="ph ph-envelope-simple"></i> 邮件任务</h2>
+        <p>{{ stats.email_count or 0 }}</p>
+    </article>
+    <article class="card">
+        <h2><i class="ph ph-webhook"></i> Webhook</h2>
+        <p>{{ stats.webhook_count or 0 }}</p>
+    </article>
+</section>
+
+<section class="panel">
+    <div class="panel-header panel-header-stack">
+        <div>
+            <h2><i class="ph ph-lightning"></i> 快速操作</h2>
+            <p class="panel-description">常用入口集中在这里。</p>
+        </div>
+    </div>
+    <div class="actions-inline">
+        <a class="btn-link" href="{{ url_for('tasks_page', last_status='failed') }}">
+            <i class="ph ph-warning-octagon"></i> 查看失败任务
+        </a>
+        <a class="btn-link" href="{{ url_for('tasks_page') }}">
+            <i class="ph ph-list-dashes"></i> 全部任务
+        </a>
+        <a class="btn-link" href="{{ url_for('monitoring') }}">
+            <i class="ph ph-chart-line-up"></i> 运行监控
+        </a>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="panel-header panel-header-stack">
+        <div>
+            <h2><i class="ph ph-clock-counter-clockwise"></i> 最近任务状态</h2>
+            <p class="panel-description">优先关注失败任务和未执行任务。</p>
+        </div>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>标题</th>
+                    <th>渠道</th>
+                    <th>启用</th>
+                    <th>最近执行</th>
+                    <th>状态</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for task in recent %}
+                    <tr class="{{ 'table-row-danger' if task.last_status == 'failed' else '' }}">
+                        <td>{{ task.id }}</td>
+                        <td>
+                            <div class="dashboard-task-cell">
+                                <strong>{{ task.title }}</strong>
+                                <span class="group-badge small">
+                                    <i class="ph ph-{{ task.group_icon or 'folder' }}"></i>
+                                    {{ task.group_name or '默认' }}
+                                </span>
+                                {% if task.last_error %}
+                                    <span class="dashboard-task-subtext">最近错误：{{ task.last_error }}</span>
+                                {% elif not task.last_run_at %}
+                                    <span class="dashboard-task-subtext">尚无执行记录</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            <span class="tag {{ 'email' if task.channel == 'email' else 'webhook' }}">
+                                <i class="ph ph-{{ 'envelope-simple' if task.channel == 'email' else 'webhook' }}"></i>
+                                {{ "邮件" if task.channel == 'email' else "Webhook" }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="status-badge {{ 'ok' if task.enabled else 'warn' }}">
+                                <i class="ph ph-{{ 'check-circle' if task.enabled else 'pause-circle' }}"></i>
+                                {{ "是" if task.enabled else "否" }}
+                            </span>
+                        </td>
+                        <td>{{ task.last_run_at or "-" }}</td>
+                        <td>
+                            {% if task.last_status == 'success' %}
+                                <span class="status-badge ok">
+                                    <i class="ph ph-check-circle"></i>
+                                    成功
+                                </span>
+                            {% elif task.last_status == 'failed' %}
+                                <span class="status-badge danger">
+                                    <i class="ph ph-x-circle"></i>
+                                    失败
+                                </span>
+                            {% else %}
+                                <span class="status-badge muted">未执行</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted">暂无任务</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

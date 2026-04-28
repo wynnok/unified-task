@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>登录 - 任务提醒</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body>
+    <main class="login-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <section class="flash-wrap login-flash-wrap">
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </section>
+            {% endif %}
+        {% endwith %}
+
+        <section class="login-panel">
+            <div class="panel login-panel-card">
+                <div class="login-brand-mark">
+                    <i class="ph ph-check-circle login-brand-icon"></i>
+                </div>
+                <div class="login-header">
+                    <span class="login-kicker">Task Reminder Console</span>
+                    <h1>任务提醒</h1>
+                    <p class="login-subtitle">登录后即可管理任务、查看状态并测试发送通道。</p>
+                </div>
+                <form method="post" action="{{ url_for('login', next=request.args.get('next', '')) }}" class="form-grid login-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <label>
+                        <span><i class="ph ph-user"></i> 账号</span>
+                        <input type="text" name="username" required autofocus placeholder="请输入账号" autocomplete="username">
+                        <small class="help-text">请输入当前系统管理员账号。</small>
+                    </label>
+                    <label>
+                        <span><i class="ph ph-lock-key"></i> 密码</span>
+                        <input type="password" name="password" required placeholder="请输入密码" autocomplete="current-password">
+                        <small class="help-text">如需重置密码，请在设置页修改。</small>
+                    </label>
+                    <button type="submit" class="primary">
+                        <i class="ph ph-sign-in"></i> 登录
+                    </button>
+                </form>
+            </div>
+        </section>
+    </main>
+</body>
+</html>

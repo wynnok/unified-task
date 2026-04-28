@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+{% set total = stats.total_executions or 0 %}
+{% set success = stats.success_count or 0 %}
+{% set failed = stats.failed_count or 0 %}
+{% set success_rate = ('%.1f'|format(success * 100 / total)) if total else '-' %}
+{% set enabled_rate = ('%.1f'|format(enabled_count * 100 / task_count)) if task_count else '-' %}
+
+<section class="panel monitoring-hero">
+    <div class="panel-header panel-header-stack monitoring-hero-header">
+        <div>
+            <h2><i class="ph ph-activity"></i> 运行概览</h2>
+            <p class="panel-description">聚合最近 30 天的执行情况，快速判断系统是否稳定。</p>
+        </div>
+        <a class="btn-link" href="{{ url_for('tasks_page') }}">
+            <i class="ph ph-list-dashes"></i> 查看任务列表
+        </a>
+    </div>
+    <div class="monitoring-summary-grid">
+        <article class="monitoring-summary-card emphasis">
+            <span class="monitoring-summary-label">30 天执行总数</span>
+            <strong>{{ total }}</strong>
+            <small>所有任务的触发与手动执行次数汇总</small>
+        </article>
+        <article class="monitoring-summary-card">
+            <span class="monitoring-summary-label">成功率</span>
+            <strong>{{ success_rate }}{% if success_rate != '-' %}%{% endif %}</strong>
+            <small>{% if total %}成功 {{ success }} 次 / 失败 {{ failed }} 次{% else %}最近 30 天暂无执行记录{% endif %}</small>
+        </article>
+        <article class="monitoring-summary-card">
+            <span class="monitoring-summary-label">启用覆盖率</span>
+            <strong>{{ enabled_rate }}{% if enabled_rate != '-' %}%{% endif %}</strong>
+            <small>{% if task_count %}已启用 {{ enabled_count }} 个，共 {{ task_count }} 个任务{% else %}当前还没有已创建任务{% endif %}</small>
+        </article>
+    </div>
+</section>
+
+
+<section class="panel">
+    <div class="panel-header panel-header-stack">
+        <div>
+            <h2><i class="ph ph-pulse"></i> 监控建议</h2>
+            <p class="panel-description">根据当前状态决定下一步排查重点。</p>
+        </div>
+    </div>
+    <div class="monitoring-metrics-grid">
+        <article class="monitoring-metric-item">
+            <span class="monitoring-metric-title">先看什么</span>
+            <p>{% if failed %}最近 30 天存在失败记录，建议优先查看任务历史和错误信息。{% elif never_run_count %}部分任务仍未执行，建议确认 Cron 与启用状态。{% elif task_count %}当前整体状态稳定，可继续关注成功率与新增任务配置。{% else %}当前没有任务，建议先创建并验证一条测试任务。{% endif %}</p>
+        </article>
+        <article class="monitoring-metric-item">
+            <span class="monitoring-metric-title">调度关注点</span>
+            <p>{% if enabled_count %}已有启用任务，调度器运行后会持续产生日志和执行记录。{% else %}当前没有启用任务，即使配置完整也不会自动执行。{% endif %}</p>
+        </article>
+        <article class="monitoring-metric-item">
+            <span class="monitoring-metric-title">下一步动作</span>
+            <p>{% if failed %}先筛选失败任务并核对错误详情。{% elif total %}可进入任务列表抽查近期执行情况。{% else %}建议先发送一次测试请求，确认通道可用。{% endif %}</p>
+        </article>
+    </div>
+</section>
+{% endblock %}

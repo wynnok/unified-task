@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+    <div class="panel-header panel-header-stack">
+        <div>
+            <h2><i class="ph ph-sliders-horizontal"></i> 发送配置</h2>
+            <p class="panel-description">统一维护登录、邮件和 Webhook 配置。</p>
+        </div>
+    </div>
+    <form method="post" action="{{ url_for('save_settings_route') }}" class="settings-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+        <div class="settings-section settings-section-card">
+            <h3><i class="ph ph-lock-key"></i> 登录配置</h3>
+            <div class="form-grid">
+                <label>
+                    <span><i class="ph ph-user"></i> 登录账号</span>
+                    <input type="text" name="auth_username" value="{{ settings.auth.username }}">
+                </label>
+                <label>
+                    <span><i class="ph ph-lock-key-open"></i> 登录密码</span>
+                    <div class="password-field">
+                        <input id="auth_password" type="password" name="auth_password" value="{{ settings.auth.password }}">
+                        <button id="toggle_auth_password" type="button" class="password-toggle" aria-label="显示密码">
+                            <i class="ph ph-eye"></i>
+                        </button>
+                    </div>
+                </label>
+                <label>
+                    <span><i class="ph ph-notebook"></i> 登录备注</span>
+                    <input type="text" name="auth_note" value="{{ settings.auth.note }}">
+                </label>
+            </div>
+        </div>
+
+        <div class="settings-section settings-section-card">
+            <h3><i class="ph ph-envelope-simple"></i> 邮件配置</h3>
+            <div class="form-grid">
+                <label>
+                    <span><i class="ph ph-globe"></i> SMTP 服务器</span>
+                    <input type="text" name="smtp_server" value="{{ settings.smtp.server }}" placeholder="smtp.example.com">
+                </label>
+                <label>
+                    <span><i class="ph ph-plugs-connected"></i> SMTP 端口</span>
+                    <input type="number" name="smtp_port" value="{{ settings.smtp.port }}">
+                </label>
+                <label>
+                    <span><i class="ph ph-user"></i> SMTP 账号</span>
+                    <input type="text" name="smtp_user" value="{{ settings.smtp.user }}">
+                </label>
+                <label>
+                    <span><i class="ph ph-lock-key"></i> SMTP 密码/授权码</span>
+                    <div class="password-field">
+                        <input id="smtp_password" type="password" name="smtp_password" value="{{ settings.smtp.password }}">
+                        <button id="toggle_password" type="button" class="password-toggle" aria-label="显示密码">
+                            <i class="ph ph-eye"></i>
+                        </button>
+                    </div>
+                </label>
+                <label>
+                    <span><i class="ph ph-paper-plane-right"></i> 发件邮箱</span>
+                    <input type="text" name="smtp_sender" value="{{ settings.smtp.sender }}" placeholder="noreply@example.com">
+                </label>
+                <label>
+                    <span><i class="ph ph-inbox"></i> 收件邮箱</span>
+                    <input type="text" name="smtp_receiver" value="{{ settings.smtp.receiver }}" placeholder="ops@example.com">
+                </label>
+                <label>
+                    <span><i class="ph ph-note-pencil"></i> 备注</span>
+                    <input type="text" name="smtp_note" value="{{ settings.smtp.note }}">
+                </label>
+            </div>
+        </div>
+
+        <div class="settings-section settings-section-card">
+            <h3><i class="ph ph-webhook"></i> Webhook 配置</h3>
+            <div class="form-grid">
+                <label>
+                    <span><i class="ph ph-link"></i> 基础地址</span>
+                    <input type="text" name="webhook_base_url" value="{{ settings.webhook.base_url }}" placeholder="https://example.com/hook">
+                </label>
+                <label>
+                    <span><i class="ph ph-sliders-horizontal"></i> 默认参数</span>
+                    <input type="text" name="webhook_default_params" value="{{ settings.webhook.default_params }}" placeholder="group=mine&icon=https://...">
+                </label>
+                <label>
+                    <span><i class="ph ph-note-pencil"></i> 备注</span>
+                    <input type="text" name="webhook_note" value="{{ settings.webhook.note }}">
+                </label>
+            </div>
+        </div>
+
+        <div class="actions-inline settings-save-actions">
+            <button type="submit" class="primary">
+                <i class="ph ph-floppy-disk"></i> 保存设置
+            </button>
+        </div>
+    </form>
+</section>
+
+<section class="panel settings-test-panel">
+    <div class="panel-header panel-header-stack">
+        <div>
+            <h2><i class="ph ph-plugs-connected"></i> 连通性测试</h2>
+            <p class="panel-description">保存后可发送测试请求确认连通性。</p>
+        </div>
+    </div>
+    <div class="test-actions settings-test-actions">
+        <form method="post" action="{{ url_for('test_email_route') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn-link btn-secondary-action">
+                <i class="ph ph-paper-plane-right"></i> 发送邮件测试
+            </button>
+        </form>
+        <form method="post" action="{{ url_for('test_webhook_route') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn-link btn-secondary-action">
+                <i class="ph ph-webhook"></i> 发送 Webhook 测试
+            </button>
+        </form>
+    </div>
+</section>
+
+<script>
+(function () {
+    function bindToggle(buttonId, inputId) {
+        var toggleButton = document.getElementById(buttonId);
+        var passwordInput = document.getElementById(inputId);
+        if (!toggleButton || !passwordInput) {
+            return;
+        }
+
+        toggleButton.addEventListener("click", function () {
+            var showing = passwordInput.type === "text";
+            passwordInput.type = showing ? "password" : "text";
+            toggleButton.innerHTML = showing ? '<i class="ph ph-eye"></i>' : '<i class="ph ph-eye-slash"></i>';
+            toggleButton.setAttribute("aria-label", showing ? "显示密码" : "隐藏密码");
+        });
+    }
+
+    bindToggle("toggle_password", "smtp_password");
+    bindToggle("toggle_auth_password", "auth_password");
+})();
+</script>
+{% endblock %}

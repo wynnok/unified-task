@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+    <div class="panel-header panel-header-stack">
+        <div>
+            <h2><i class="ph ph-folders"></i> 分组管理</h2>
+            <p class="panel-description">维护任务分组，序号决定展示顺序。</p>
+        </div>
+    </div>
+    <form method="post" action="{{ url_for('create_group_route') }}" class="form-grid group-create-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>
+            <span><i class="ph ph-sort-ascending"></i> 序号</span>
+            <input type="number" name="sort_order" required placeholder="10">
+        </label>
+        <label>
+            <span><i class="ph ph-text-t"></i> 名称</span>
+            <input type="text" name="name" required placeholder="例如：财务">
+        </label>
+        <label>
+            <span><i class="ph ph-smiley"></i> 图标</span>
+            <div class="group-icon-select" data-icon-select>
+                <button type="button" class="group-icon-trigger">
+                    <span class="group-icon-trigger-content">
+                        <i class="ph ph-{{ icon_options[0].value }}"></i>
+                        <span>{{ icon_options[0].label }}</span>
+                    </span>
+                    <i class="ph ph-caret-down"></i>
+                </button>
+                <input type="hidden" name="icon" value="{{ icon_options[0].value }}" required>
+                <div class="group-icon-menu">
+                    {% for option in icon_options %}
+                    <button type="button" class="group-icon-option{% if loop.first %} is-selected{% endif %}" data-icon-value="{{ option.value }}" data-icon-label="{{ option.label }}">
+                        <i class="ph ph-{{ option.value }}"></i>
+                        <span>{{ option.label }}</span>
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+        </label>
+        <button type="submit" class="primary group-create-submit">
+            <i class="ph ph-plus"></i> 新建分组
+        </button>
+    </form>
+</section>
+
+<section class="panel">
+    <div class="panel-header panel-header-stack">
+        <div>
+            <h2><i class="ph ph-list-bullets"></i> 已有分组</h2>
+            <p class="panel-description">默认与已创建分组都显示在这里。</p>
+        </div>
+    </div>
+
+    {% if groups %}
+        <div class="groups-list">
+            {% for group in groups %}
+            <article class="group-card">
+                <form id="group-update-{{ group.id }}" method="post" action="{{ url_for('update_group_route', group_id=group.id) }}" class="group-card-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <label>
+                        <span><i class="ph ph-sort-ascending"></i> 序号</span>
+                        <input type="number" name="sort_order" value="{{ group.sort_order }}" required>
+                    </label>
+                    <label>
+                        <span><i class="ph ph-text-t"></i> 名称</span>
+                        <input type="text" name="name" value="{{ group.name }}" required>
+                    </label>
+                    <label>
+                        <span><i class="ph ph-smiley"></i> 图标</span>
+                        <div class="group-icon-select" data-icon-select>
+                            <button type="button" class="group-icon-trigger">
+                                <span class="group-icon-trigger-content">
+                                    <i class="ph ph-{{ group.icon }}"></i>
+                                    <span>
+                                        {% for option in icon_options %}
+                                        {% if option.value == group.icon %}{{ option.label }}{% endif %}
+                                        {% endfor %}
+                                    </span>
+                                </span>
+                                <i class="ph ph-caret-down"></i>
+                            </button>
+                            <input type="hidden" name="icon" value="{{ group.icon }}" required>
+                            <div class="group-icon-menu">
+                                {% for option in icon_options %}
+                                <button type="button" class="group-icon-option{% if option.value == group.icon %} is-selected{% endif %}" data-icon-value="{{ option.value }}" data-icon-label="{{ option.label }}">
+                                    <i class="ph ph-{{ option.value }}"></i>
+                                    <span>{{ option.label }}</span>
+                                </button>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </label>
+                    <div class="group-card-meta group-card-meta-centered">
+                        <span class="group-badge">
+                            <i class="ph ph-{{ group.icon }}"></i>
+                            {{ group.name }}
+                        </span>
+                        <span class="status-badge muted">{{ group.task_count }} 个任务</span>
+                    </div>
+                </form>
+                <div class="group-card-actions">
+                    <button type="submit" form="group-update-{{ group.id }}" class="primary btn-action group-action-button">
+                        <i class="ph ph-floppy-disk"></i> 保存
+                    </button>
+                    <form method="post" action="{{ url_for('delete_group_route', group_id=group.id) }}" class="group-delete-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn-action btn-danger group-action-button">
+                            <i class="ph ph-trash"></i> 删除
+                        </button>
+                    </form>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <i class="ph ph-inbox empty-state-icon"></i>
+            <p>暂无分组</p>
+        </div>
+    {% endif %}
+</section>
+
+<script>
+document.querySelectorAll('[data-icon-select]').forEach((selectRoot) => {
+    const trigger = selectRoot.querySelector('.group-icon-trigger');
+    const hiddenInput = selectRoot.querySelector('input[name="icon"]');
+    const options = Array.from(selectRoot.querySelectorAll('.group-icon-option'));
+
+    function setSelected(option) {
+        if (!option || !hiddenInput || !trigger) {
+            return;
+        }
+
+        hiddenInput.value = option.dataset.iconValue;
+        options.forEach((item) => item.classList.toggle('is-selected', item === option));
+
+        trigger.querySelector('.group-icon-trigger-content').innerHTML =
+            '<i class="ph ph-' + option.dataset.iconValue + '"></i><span>' + option.dataset.iconLabel + '</span>';
+    }
+
+    trigger.addEventListener('click', function (event) {
+        event.preventDefault();
+        document.querySelectorAll('[data-icon-select].is-open').forEach((item) => {
+            if (item !== selectRoot) {
+                item.classList.remove('is-open');
+            }
+        });
+        selectRoot.classList.toggle('is-open');
+    });
+
+    options.forEach((option) => {
+        option.addEventListener('click', function (event) {
+            event.preventDefault();
+            setSelected(option);
+            selectRoot.classList.remove('is-open');
+        });
+    });
+});
+
+document.addEventListener('click', function (event) {
+    document.querySelectorAll('[data-icon-select].is-open').forEach((selectRoot) => {
+        if (!selectRoot.contains(event.target)) {
+            selectRoot.classList.remove('is-open');
+        }
+    });
+});
+</script>
+{% endblock %}

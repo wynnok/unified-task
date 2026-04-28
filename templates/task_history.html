@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block content %}
+{% set total_runs = history|length %}
+{% set success_runs = history|selectattr('status', 'equalto', 'success')|list|length %}
+{% set failed_runs = history|selectattr('status', 'equalto', 'failed')|list|length %}
+{% set failed_history = history|selectattr('status', 'equalto', 'failed')|list %}
+
+<section class="panel">
+    <div class="panel-header panel-header-stack">
+        <div>
+            <h2><i class="ph ph-clock-counter-clockwise"></i> 执行历史</h2>
+            <p class="panel-description">查看任务最近 100 次执行结果，快速判断是否稳定、是否存在连续失败。</p>
+        </div>
+        <a class="btn-link" href="{{ url_for('tasks_page') }}">
+            <i class="ph ph-arrow-left"></i> 返回任务列表
+        </a>
+    </div>
+
+    <div class="status-row history-summary-row">
+        <div class="history-task-heading">
+            <strong>#{{ task.id }}</strong>
+            <span>{{ task.title }}</span>
+        </div>
+        <div class="history-task-badges">
+            <span class="group-badge">
+                <i class="ph ph-{{ task.group_icon or 'folder' }}"></i>
+                {{ task.group_name or '默认' }}
+            </span>
+            <span class="tag {{ 'email' if task.channel == 'email' else 'webhook' }}">
+                <i class="ph ph-{{ 'envelope-simple' if task.channel == 'email' else 'webhook' }}"></i>
+                {{ "邮件" if task.channel == 'email' else "Webhook" }}
+            </span>
+            <span class="status-badge {{ 'ok' if task.enabled else 'warn' }}">
+                <i class="ph ph-{{ 'check-circle' if task.enabled else 'pause-circle' }}"></i>
+                {{ '启用中' if task.enabled else '已停用' }}
+            </span>
+        </div>
+    </div>
+
+    <div class="history-stats-grid">
+        <article class="history-stat-card">
+            <span class="history-stat-label">最近记录数</span>
+            <strong>{{ total_runs }}</strong>
+        </article>
+        <article class="history-stat-card">
+            <span class="history-stat-label">成功次数</span>
+            <strong>{{ success_runs }}</strong>
+        </article>
+        <article class="history-stat-card history-stat-card-danger">
+            <span class="history-stat-label">失败次数</span>
+            <strong>{{ failed_runs }}</strong>
+        </article>
+    </div>
+
+    {% if failed_history %}
+    <section class="history-failure-panel">
+        <div class="panel-header panel-header-stack history-failure-header">
+            <div>
+                <h3><i class="ph ph-warning-octagon"></i> 失败记录聚焦</h3>
+                <p class="panel-description">这里优先列出失败项，便于先处理异常再回看完整历史。</p>
+            </div>
+        </div>
+        <div class="history-failure-list">
+            {% for item in failed_history[:5] %}
+            <article class="history-failure-item">
+                <div class="history-failure-time">{{ item.executed_at }}</div>
+                <div class="history-failure-body">
+                    <span class="status-badge danger">
+                        <i class="ph ph-x-circle"></i>
+                        失败
+                    </span>
+                    <p class="history-error-text">{{ item.error or '无错误详情' }}</p>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>执行时间</th>
+                    <th>状态</th>
+                    <th>错误信息</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in history %}
+                    <tr class="{{ 'table-row-danger' if item.status == 'failed' else '' }}">
+                        <td>{{ item.executed_at }}</td>
+                        <td>
+                            {% if item.status == 'success' %}
+                                <span class="status-badge ok">
+                                    <i class="ph ph-check-circle"></i>
+                                    成功
+                                </span>
+                            {% else %}
+                                <span class="status-badge danger">
+                                    <i class="ph ph-x-circle"></i>
+                                    失败
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.error %}
+                                <span class="history-error-text">{{ item.error }}</span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="3" class="text-center text-muted">暂无执行记录</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

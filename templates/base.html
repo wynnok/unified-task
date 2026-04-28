@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title or "任务提醒" }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body>
+    {% if session.get('authenticated') %}
+    <header class="topbar">
+        <h1>任务提醒</h1>
+
+        <!-- 汉堡菜单按钮 (移动端) -->
+        <button class="hamburger-menu" id="hamburgerMenu" aria-label="菜单">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+
+        <!-- 桌面端导航 -->
+        <nav class="desktop-nav">
+            <a class="{% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+                <i class="ph ph-squares-four"></i>
+                仪表盘
+            </a>
+            <a class="{% if request.endpoint in ['tasks_page', 'create_task_route', 'update_task', 'delete_task', 'run_task_now', 'task_history'] %}active{% endif %}" href="{{ url_for('tasks_page') }}">
+                <i class="ph ph-list-checks"></i>
+                任务管理
+            </a>
+            <a class="{% if request.endpoint in ['groups_page', 'create_group_route', 'update_group_route', 'delete_group_route'] %}active{% endif %}" href="{{ url_for('groups_page') }}">
+                <i class="ph ph-folders"></i>
+                分组管理
+            </a>
+            <a class="{% if request.endpoint == 'monitoring' %}active{% endif %}" href="{{ url_for('monitoring') }}">
+                <i class="ph ph-chart-line"></i>
+                监控
+            </a>
+            <a class="{% if request.endpoint in ['settings_page', 'save_settings_route', 'test_email_route', 'test_webhook_route'] %}active{% endif %}" href="{{ url_for('settings_page') }}">
+                <i class="ph ph-gear"></i>
+                设置
+            </a>
+            <form method="post" action="{{ url_for('logout') }}" class="logout-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="logout-btn">
+                    <i class="ph ph-sign-out"></i>
+                    退出
+                </button>
+            </form>
+        </nav>
+    </header>
+
+    <!-- 移动端导航 -->
+    <nav class="mobile-nav" id="mobileNav">
+        <a class="{% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+            <i class="ph ph-squares-four"></i>
+            仪表盘
+        </a>
+        <a class="{% if request.endpoint in ['tasks_page', 'create_task_route', 'update_task', 'delete_task', 'run_task_now', 'task_history'] %}active{% endif %}" href="{{ url_for('tasks_page') }}">
+            <i class="ph ph-list-checks"></i>
+            任务管理
+        </a>
+        <a class="{% if request.endpoint in ['groups_page', 'create_group_route', 'update_group_route', 'delete_group_route'] %}active{% endif %}" href="{{ url_for('groups_page') }}">
+            <i class="ph ph-folders"></i>
+            分组管理
+        </a>
+        <a class="{% if request.endpoint == 'monitoring' %}active{% endif %}" href="{{ url_for('monitoring') }}">
+            <i class="ph ph-chart-line"></i>
+            监控
+        </a>
+        <a class="{% if request.endpoint in ['settings_page', 'save_settings_route', 'test_email_route', 'test_webhook_route'] %}active{% endif %}" href="{{ url_for('settings_page') }}">
+            <i class="ph ph-gear"></i>
+            设置
+        </a>
+        <form method="post" action="{{ url_for('logout') }}" class="logout-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="logout-btn">
+                <i class="ph ph-sign-out"></i>
+                退出
+            </button>
+        </form>
+    </nav>
+    {% endif %}
+
+    <main class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <section class="flash-wrap">
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </section>
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    {% if session.get('authenticated') %}
+    <script>
+    // 汉堡菜单切换
+    (function() {
+        var hamburger = document.getElementById('hamburgerMenu');
+        var mobileNav = document.getElementById('mobileNav');
+
+        if (hamburger && mobileNav) {
+            hamburger.addEventListener('click', function() {
+                hamburger.classList.toggle('active');
+                mobileNav.classList.toggle('active');
+            });
+
+            // 点击导航外部关闭菜单
+            document.addEventListener('click', function(e) {
+                if (!hamburger.contains(e.target) && !mobileNav.contains(e.target)) {
+                    hamburger.classList.remove('active');
+                    mobileNav.classList.remove('active');
+                }
+            });
+        }
+    })();
+    </script>
+    {% endif %}
+</body>
+</html>
