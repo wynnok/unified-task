@@ -2510,6 +2510,37 @@ button:active,
 .mb-2 { margin-bottom: var(--space-4); }
 .mb-3 { margin-bottom: var(--space-6); }
 
+button:focus-visible,
+.btn:focus-visible,
+.btn-link:focus-visible,
+.logout-btn:focus-visible,
+.task-card-header:focus-visible,
+.group-icon-option:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 4px var(--primary-50), 0 0 0 1px var(--primary);
+}
+
+.task-card-header:focus-visible {
+    background: linear-gradient(180deg, var(--primary-50) 0%, #fff 100%);
+}
+
+.group-icon-option:focus-visible {
+    background: var(--primary-soft);
+    color: var(--primary-700);
+    border-color: rgba(186, 230, 253, 0.95);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
 /* ============================================
    打印样式
    ============================================ */

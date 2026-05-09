@@ -203,7 +203,8 @@ def render_task_message(
             return match.group(0)
 
         count = db.get_month_execution_count(int(task_id), timezone_name=TIMEZONE)
-        return str(count)
+        # 执行记录在发送后写入，占位符展示本次发送序号。
+        return str(count + 1)
 
     return VAR_PLACEHOLDER_PATTERN.sub(replace_placeholder, message)
 

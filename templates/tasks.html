@@ -3,7 +3,7 @@
 {% set failed_tasks = tasks|selectattr('last_status', 'equalto', 'failed')|list %}
 {% set never_run_tasks = tasks|rejectattr('last_run_at')|list %}
 {% macro task_select_option(value, label, icon, selected_value) -%}
-<button type="button" class="group-icon-option{% if (selected_value|string) == (value|string) %} is-selected{% endif %}" data-select-value="{{ value }}" data-select-label="{{ label }}" data-select-icon="{{ icon }}">
+<button type="button" class="group-icon-option{% if (selected_value|string) == (value|string) %} is-selected{% endif %}" data-select-value="{{ value }}" data-select-label="{{ label }}" data-select-icon="{{ icon }}" role="option" aria-selected="{{ 'true' if (selected_value|string) == (value|string) else 'false' }}">
     <i class="ph ph-{{ icon }}"></i>
     <span>{{ label }}</span>
 </button>
@@ -21,7 +21,7 @@
             <div class="group-icon-select task-custom-select" data-custom-select>
                 {% set channel_label = '邮件' if filter_channel == 'email' else 'Webhook' if filter_channel == 'webhook' else '全部' %}
                 {% set channel_icon = 'envelope-simple' if filter_channel == 'email' else 'webhook' if filter_channel == 'webhook' else 'squares-four' %}
-                <button type="button" class="group-icon-trigger">
+                <button type="button" class="group-icon-trigger" aria-haspopup="listbox" aria-expanded="false">
                     <span class="group-icon-trigger-content">
                         <i class="ph ph-{{ channel_icon }}"></i>
                         <span>{{ channel_label }}</span>
@@ -29,7 +29,7 @@
                     <i class="ph ph-caret-down"></i>
                 </button>
                 <input type="hidden" name="channel" value="{{ filter_channel or '' }}">
-                <div class="group-icon-menu">
+                <div class="group-icon-menu" role="listbox">
                     {{ task_select_option('', '全部', 'squares-four', filter_channel or '') }}
                     {{ task_select_option('email', '邮件', 'envelope-simple', filter_channel or '') }}
                     {{ task_select_option('webhook', 'Webhook', 'webhook', filter_channel or '') }}
@@ -41,7 +41,7 @@
             <div class="group-icon-select task-custom-select" data-custom-select>
                 {% set enabled_label = '已启用' if filter_enabled == 'enabled' else '已停用' if filter_enabled == 'disabled' else '全部' %}
                 {% set enabled_icon = 'check-circle' if filter_enabled == 'enabled' else 'pause-circle' if filter_enabled == 'disabled' else 'squares-four' %}
-                <button type="button" class="group-icon-trigger">
+                <button type="button" class="group-icon-trigger" aria-haspopup="listbox" aria-expanded="false">
                     <span class="group-icon-trigger-content">
                         <i class="ph ph-{{ enabled_icon }}"></i>
                         <span>{{ enabled_label }}</span>
@@ -49,7 +49,7 @@
                     <i class="ph ph-caret-down"></i>
                 </button>
                 <input type="hidden" name="enabled" value="{{ filter_enabled or '' }}">
-                <div class="group-icon-menu">
+                <div class="group-icon-menu" role="listbox">
                     {{ task_select_option('', '全部', 'squares-four', filter_enabled or '') }}
                     {{ task_select_option('enabled', '已启用', 'check-circle', filter_enabled or '') }}
                     {{ task_select_option('disabled', '已停用', 'pause-circle', filter_enabled or '') }}
@@ -61,7 +61,7 @@
             <div class="group-icon-select task-custom-select" data-custom-select>
                 {% set status_label = '仅看失败' if filter_last_status == 'failed' else '全部' %}
                 {% set status_icon = 'warning-octagon' if filter_last_status == 'failed' else 'squares-four' %}
-                <button type="button" class="group-icon-trigger">
+                <button type="button" class="group-icon-trigger" aria-haspopup="listbox" aria-expanded="false">
                     <span class="group-icon-trigger-content">
                         <i class="ph ph-{{ status_icon }}"></i>
                         <span>{{ status_label }}</span>
@@ -69,7 +69,7 @@
                     <i class="ph ph-caret-down"></i>
                 </button>
                 <input type="hidden" name="last_status" value="{{ filter_last_status or '' }}">
-                <div class="group-icon-menu">
+                <div class="group-icon-menu" role="listbox">
                     {{ task_select_option('', '全部', 'squares-four', filter_last_status or '') }}
                     {{ task_select_option('failed', '仅看失败', 'warning-octagon', filter_last_status or '') }}
                 </div>
@@ -85,7 +85,7 @@
                         {% set filter_group.icon = group.icon %}
                     {% endif %}
                 {% endfor %}
-                <button type="button" class="group-icon-trigger">
+                <button type="button" class="group-icon-trigger" aria-haspopup="listbox" aria-expanded="false">
                     <span class="group-icon-trigger-content">
                         <i class="ph ph-{{ filter_group.icon }}"></i>
                         <span>{{ filter_group.label }}</span>
@@ -93,7 +93,7 @@
                     <i class="ph ph-caret-down"></i>
                 </button>
                 <input type="hidden" name="group_id" value="{{ filter_group_id or '' }}">
-                <div class="group-icon-menu">
+                <div class="group-icon-menu" role="listbox">
                     {{ task_select_option('', '全部分组', 'folders', filter_group_id or '') }}
                     {% for group in groups %}
                     {{ task_select_option(group.id, group.name, group.icon, filter_group_id or '') }}
@@ -178,7 +178,7 @@
         <label>
             <span><i class="ph ph-paper-plane-tilt"></i> 发送渠道</span>
             <div class="group-icon-select task-custom-select" data-custom-select>
-                <button type="button" class="group-icon-trigger" {% if not can_create_task %}disabled{% endif %}>
+                <button type="button" class="group-icon-trigger" aria-haspopup="listbox" aria-expanded="false" {% if not can_create_task %}disabled{% endif %}>
                     <span class="group-icon-trigger-content">
                         <i class="ph ph-envelope-simple"></i>
                         <span>邮件</span>
@@ -186,7 +186,7 @@
                     <i class="ph ph-caret-down"></i>
                 </button>
                 <input type="hidden" name="channel" value="email" required {% if not can_create_task %}disabled{% endif %}>
-                <div class="group-icon-menu">
+                <div class="group-icon-menu" role="listbox">
                     {{ task_select_option('email', '邮件', 'envelope-simple', 'email') }}
                     {{ task_select_option('webhook', 'Webhook', 'webhook', 'email') }}
                 </div>
@@ -197,7 +197,7 @@
         <label>
             <span><i class="ph ph-folders"></i> 分组</span>
             <div class="group-icon-select task-custom-select" data-custom-select>
-                <button type="button" class="group-icon-trigger">
+                <button type="button" class="group-icon-trigger" aria-haspopup="listbox" aria-expanded="false">
                     <span class="group-icon-trigger-content">
                         <i class="ph ph-{{ groups[0].icon }}"></i>
                         <span>{{ groups[0].name }}</span>
@@ -205,7 +205,7 @@
                     <i class="ph ph-caret-down"></i>
                 </button>
                 <input type="hidden" name="group_id" value="{{ groups[0].id }}" required>
-                <div class="group-icon-menu">
+                <div class="group-icon-menu" role="listbox">
                     {% for group in groups %}
                     {{ task_select_option(group.id, group.name, group.icon, groups[0].id) }}
                     {% endfor %}
@@ -287,7 +287,7 @@
                 <i class="ph ph-clock-counter-clockwise"></i> 历史记录
             </a>
         </div>
-        <div class="task-card-header" onclick="toggleTaskCard('{{ task.id }}')">
+        <div class="task-card-header" onclick="toggleTaskCard('{{ task.id }}')" role="button" tabindex="0" aria-expanded="true" aria-controls="task-body-{{ task.id }}">
             <div class="task-card-main">
                 <div class="task-card-title-row">
                     <span class="expand-icon"><i class="ph ph-caret-down"></i></span>
@@ -332,7 +332,7 @@
                 </span>
             </div>
         </div>
-        <div class="task-card-body">
+        <div class="task-card-body" id="task-body-{{ task.id }}">
             <form method="post" action="{{ url_for('update_task', task_id=task.id) }}" class="form-grid compact task-edit-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <label>
@@ -356,7 +356,7 @@
                     <div class="group-icon-select task-custom-select" data-custom-select>
                         {% set task_channel_label = '邮件' if task.channel == 'email' else 'Webhook' %}
                         {% set task_channel_icon = 'envelope-simple' if task.channel == 'email' else 'webhook' %}
-                        <button type="button" class="group-icon-trigger">
+                        <button type="button" class="group-icon-trigger" aria-haspopup="listbox" aria-expanded="false">
                             <span class="group-icon-trigger-content">
                                 <i class="ph ph-{{ task_channel_icon }}"></i>
                                 <span>{{ task_channel_label }}</span>
@@ -364,7 +364,7 @@
                             <i class="ph ph-caret-down"></i>
                         </button>
                         <input type="hidden" name="channel" value="{{ task.channel }}" required>
-                        <div class="group-icon-menu">
+                        <div class="group-icon-menu" role="listbox">
                             {{ task_select_option('email', '邮件', 'envelope-simple', task.channel) }}
                             {{ task_select_option('webhook', 'Webhook', 'webhook', task.channel) }}
                         </div>
@@ -373,7 +373,7 @@
                 <label>
                     <span><i class="ph ph-folders"></i> 分组</span>
                     <div class="group-icon-select task-custom-select" data-custom-select>
-                        <button type="button" class="group-icon-trigger">
+                        <button type="button" class="group-icon-trigger" aria-haspopup="listbox" aria-expanded="false">
                             <span class="group-icon-trigger-content">
                                 <i class="ph ph-{{ task.group_icon or 'folder' }}"></i>
                                 <span>{{ task.group_name or '默认' }}</span>
@@ -381,7 +381,7 @@
                             <i class="ph ph-caret-down"></i>
                         </button>
                         <input type="hidden" name="group_id" value="{{ task.group_id }}" required>
-                        <div class="group-icon-menu">
+                        <div class="group-icon-menu" role="listbox">
                             {% for group in groups %}
                             {{ task_select_option(group.id, group.name, group.icon, task.group_id) }}
                             {% endfor %}
@@ -430,7 +430,11 @@
 <script>
 function toggleTaskCard(taskId) {
     const card = document.getElementById('task-' + taskId);
-    card.classList.toggle('collapsed');
+    const header = card.querySelector('.task-card-header');
+    const isCollapsed = card.classList.toggle('collapsed');
+    if (header) {
+        header.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+    }
 }
 
 function getSelectedTaskIds() {
@@ -462,11 +466,19 @@ function updateBatchToolbar() {
 
 function submitBatchAction(action, requiresConfirm = false) {
     const taskIds = getSelectedTaskIds();
+    const actionLabels = {
+        enable: '启用',
+        disable: '停用',
+        delete: '删除',
+    };
     if (!taskIds.length) {
         alert('请先选择至少一个任务');
         return;
     }
-    if (requiresConfirm && !confirm('确认执行该批量操作？')) {
+    const confirmMessage = action === 'delete'
+        ? '确认删除选中的 ' + taskIds.length + ' 个任务？'
+        : '确认' + actionLabels[action] + '选中的 ' + taskIds.length + ' 个任务？';
+    if (requiresConfirm && !confirm(confirmMessage)) {
         return;
     }
 
@@ -491,6 +503,14 @@ document.querySelectorAll('.task-selector').forEach((input) => {
 
 updateBatchToolbar();
 
+function setSelectOpen(selectRoot, isOpen) {
+    const trigger = selectRoot.querySelector('.group-icon-trigger');
+    selectRoot.classList.toggle('is-open', isOpen);
+    if (trigger) {
+        trigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    }
+}
+
 document.querySelectorAll('[data-custom-select]').forEach((selectRoot) => {
     const trigger = selectRoot.querySelector('.group-icon-trigger');
     const hiddenInput = selectRoot.querySelector('input[type="hidden"]');
@@ -499,7 +519,7 @@ document.querySelectorAll('[data-custom-select]').forEach((selectRoot) => {
     function closeOtherSelects() {
         document.querySelectorAll('[data-custom-select].is-open').forEach((item) => {
             if (item !== selectRoot) {
-                item.classList.remove('is-open');
+                setSelectOpen(item, false);
             }
         });
     }
@@ -509,10 +529,20 @@ document.querySelectorAll('[data-custom-select]').forEach((selectRoot) => {
             return;
         }
 
+        const triggerContent = trigger.querySelector('.group-icon-trigger-content');
+        const icon = document.createElement('i');
+        const label = document.createElement('span');
+
         hiddenInput.value = option.dataset.selectValue;
-        options.forEach((item) => item.classList.toggle('is-selected', item === option));
-        trigger.querySelector('.group-icon-trigger-content').innerHTML =
-            '<i class="ph ph-' + option.dataset.selectIcon + '"></i><span>' + option.dataset.selectLabel + '</span>';
+        options.forEach((item) => {
+            const isSelected = item === option;
+            item.classList.toggle('is-selected', isSelected);
+            item.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+        });
+
+        icon.className = 'ph ph-' + option.dataset.selectIcon;
+        label.textContent = option.dataset.selectLabel;
+        triggerContent.replaceChildren(icon, label);
     }
 
     if (!trigger || trigger.disabled) {
@@ -522,14 +552,49 @@ document.querySelectorAll('[data-custom-select]').forEach((selectRoot) => {
     trigger.addEventListener('click', function (event) {
         event.preventDefault();
         closeOtherSelects();
-        selectRoot.classList.toggle('is-open');
+        setSelectOpen(selectRoot, !selectRoot.classList.contains('is-open'));
     });
 
-    options.forEach((option) => {
+    trigger.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+            setSelectOpen(selectRoot, false);
+            return;
+        }
+        if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            closeOtherSelects();
+            setSelectOpen(selectRoot, true);
+            const selectedOption = options.find((option) => option.classList.contains('is-selected')) || options[0];
+            if (selectedOption) {
+                selectedOption.focus();
+            }
+        }
+    });
+
+    options.forEach((option, index) => {
         option.addEventListener('click', function (event) {
             event.preventDefault();
             setSelected(option);
-            selectRoot.classList.remove('is-open');
+            setSelectOpen(selectRoot, false);
+            trigger.focus();
+        });
+
+        option.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                setSelectOpen(selectRoot, false);
+                trigger.focus();
+            } else if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                options[Math.min(index + 1, options.length - 1)].focus();
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                options[Math.max(index - 1, 0)].focus();
+            } else if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                setSelected(option);
+                setSelectOpen(selectRoot, false);
+                trigger.focus();
+            }
         });
     });
 });
@@ -537,7 +602,19 @@ document.querySelectorAll('[data-custom-select]').forEach((selectRoot) => {
 document.addEventListener('click', function (event) {
     document.querySelectorAll('[data-custom-select].is-open').forEach((selectRoot) => {
         if (!selectRoot.contains(event.target)) {
-            selectRoot.classList.remove('is-open');
+            setSelectOpen(selectRoot, false);
+        }
+    });
+});
+
+document.querySelectorAll('.task-card-header').forEach((header) => {
+    header.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            const card = header.closest('.task-card');
+            if (card) {
+                toggleTaskCard(card.dataset.taskId);
+            }
         }
     });
 });
