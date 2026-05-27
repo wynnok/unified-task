@@ -73,7 +73,7 @@
         </div>
 
         <div class="settings-section settings-section-card">
-            <h3><i class="ph ph-webhook"></i> Webhook 配置</h3>
+            <h3><i class="ph ph-webhooks-logo"></i> Webhook 配置</h3>
             <div class="form-grid">
                 <label>
                     <span><i class="ph ph-link"></i> 基础地址</span>
@@ -115,7 +115,7 @@
         <form method="post" action="{{ url_for('test_webhook_route') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit" class="btn-link btn-secondary-action">
-                <i class="ph ph-webhook"></i> 发送 Webhook 测试
+                <i class="ph ph-webhooks-logo"></i> 发送 Webhook 测试
             </button>
         </form>
     </div>
