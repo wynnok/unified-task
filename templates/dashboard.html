@@ -51,7 +51,7 @@
         <p>{{ stats.email_count or 0 }}</p>
     </article>
     <article class="card">
-        <h2><i class="ph ph-webhook"></i> Webhook</h2>
+        <h2><i class="ph ph-webhooks-logo"></i> Webhook</h2>
         <p>{{ stats.webhook_count or 0 }}</p>
     </article>
 </section>
@@ -115,7 +115,7 @@
                         </td>
                         <td>
                             <span class="tag {{ 'email' if task.channel == 'email' else 'webhook' }}">
-                                <i class="ph ph-{{ 'envelope-simple' if task.channel == 'email' else 'webhook' }}"></i>
+                                <i class="ph ph-{{ 'envelope-simple' if task.channel == 'email' else 'webhooks-logo' }}"></i>
                                 {{ "邮件" if task.channel == 'email' else "Webhook" }}
                             </span>
                         </td>

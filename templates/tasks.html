@@ -20,7 +20,7 @@
             <span><i class="ph ph-funnel"></i> 渠道</span>
             <div class="group-icon-select task-custom-select" data-custom-select>
                 {% set channel_label = '邮件' if filter_channel == 'email' else 'Webhook' if filter_channel == 'webhook' else '全部' %}
-                {% set channel_icon = 'envelope-simple' if filter_channel == 'email' else 'webhook' if filter_channel == 'webhook' else 'squares-four' %}
+                {% set channel_icon = 'envelope-simple' if filter_channel == 'email' else 'webhooks-logo' if filter_channel == 'webhook' else 'squares-four' %}
                 <button type="button" class="group-icon-trigger" aria-haspopup="listbox" aria-expanded="false">
                     <span class="group-icon-trigger-content">
                         <i class="ph ph-{{ channel_icon }}"></i>
@@ -32,7 +32,7 @@
                 <div class="group-icon-menu" role="listbox">
                     {{ task_select_option('', '全部', 'squares-four', filter_channel or '') }}
                     {{ task_select_option('email', '邮件', 'envelope-simple', filter_channel or '') }}
-                    {{ task_select_option('webhook', 'Webhook', 'webhook', filter_channel or '') }}
+                    {{ task_select_option('webhook', 'Webhook', 'webhooks-logo', filter_channel or '') }}
                 </div>
             </div>
         </label>
@@ -188,7 +188,7 @@
                 <input type="hidden" name="channel" value="email" required {% if not can_create_task %}disabled{% endif %}>
                 <div class="group-icon-menu" role="listbox">
                     {{ task_select_option('email', '邮件', 'envelope-simple', 'email') }}
-                    {{ task_select_option('webhook', 'Webhook', 'webhook', 'email') }}
+                    {{ task_select_option('webhook', 'Webhook', 'webhooks-logo', 'email') }}
                 </div>
             </div>
             <small class="help-text">邮件适合人工提醒，Webhook 适合集成外部系统。</small>
@@ -299,7 +299,7 @@
                         {{ task.group_name or '默认' }}
                     </span>
                     <span class="tag {{ 'email' if task.channel == 'email' else 'webhook' }}">
-                        <i class="ph ph-{{ 'envelope-simple' if task.channel == 'email' else 'webhook' }}"></i>
+                        <i class="ph ph-{{ 'envelope-simple' if task.channel == 'email' else 'webhooks-logo' }}"></i>
                         {{ "邮件" if task.channel == 'email' else "Webhook" }}
                     </span>
                     <span class="status-badge {{ 'ok' if task.enabled else 'warn' }}">
@@ -355,7 +355,7 @@
                     <span><i class="ph ph-paper-plane-tilt"></i> 渠道</span>
                     <div class="group-icon-select task-custom-select" data-custom-select>
                         {% set task_channel_label = '邮件' if task.channel == 'email' else 'Webhook' %}
-                        {% set task_channel_icon = 'envelope-simple' if task.channel == 'email' else 'webhook' %}
+                        {% set task_channel_icon = 'envelope-simple' if task.channel == 'email' else 'webhooks-logo' %}
                         <button type="button" class="group-icon-trigger" aria-haspopup="listbox" aria-expanded="false">
                             <span class="group-icon-trigger-content">
                                 <i class="ph ph-{{ task_channel_icon }}"></i>
@@ -366,7 +366,7 @@
                         <input type="hidden" name="channel" value="{{ task.channel }}" required>
                         <div class="group-icon-menu" role="listbox">
                             {{ task_select_option('email', '邮件', 'envelope-simple', task.channel) }}
-                            {{ task_select_option('webhook', 'Webhook', 'webhook', task.channel) }}
+                            {{ task_select_option('webhook', 'Webhook', 'webhooks-logo', task.channel) }}
                         </div>
                     </div>
                 </label>

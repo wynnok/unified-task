@@ -27,7 +27,7 @@
                 {{ task.group_name or '默认' }}
             </span>
             <span class="tag {{ 'email' if task.channel == 'email' else 'webhook' }}">
-                <i class="ph ph-{{ 'envelope-simple' if task.channel == 'email' else 'webhook' }}"></i>
+                <i class="ph ph-{{ 'envelope-simple' if task.channel == 'email' else 'webhooks-logo' }}"></i>
                 {{ "邮件" if task.channel == 'email' else "Webhook" }}
             </span>
             <span class="status-badge {{ 'ok' if task.enabled else 'warn' }}">
