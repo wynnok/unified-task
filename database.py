@@ -11,6 +11,9 @@ from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 
+_ALLOWED_TABLES = frozenset({"groups", "tasks", "execution_history", "sessions", "settings", "tasks__migrated"})
+
+
 def current_time_text(timezone_name: Optional[str] = None) -> str:
     timezone = ZoneInfo(timezone_name or os.environ.get("APP_TIMEZONE", "Asia/Shanghai"))
     return datetime.now(timezone).strftime("%Y-%m-%d %H:%M:%S")
@@ -20,6 +23,7 @@ class Database:
     def __init__(self, db_path: str, auto_migrate: bool = True):
         self.db_path = db_path
         self.local = threading.local()
+        self._default_group_id_cache = None
         if auto_migrate:
             self._init_db()
 
@@ -28,6 +32,12 @@ class Database:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
         return conn
+
+    @staticmethod
+    def _require_table_name(table_name: str) -> str:
+        if table_name not in _ALLOWED_TABLES:
+            raise ValueError(f"Invalid table name: {table_name}")
+        return table_name
 
     @staticmethod
     def _require_existing_db_path(db_path: str) -> str:
@@ -98,6 +108,7 @@ class Database:
     @contextmanager
     def transaction(self):
         conn = self._get_conn()
+        conn.execute("BEGIN IMMEDIATE")
         try:
             yield conn
             conn.commit()
@@ -106,8 +117,8 @@ class Database:
             raise
 
     def _init_db(self):
-        with self.transaction() as conn:
-            conn.executescript("""
+        conn = self._get_conn()
+        conn.executescript("""
                 CREATE TABLE IF NOT EXISTS groups (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     sort_order INTEGER NOT NULL,
@@ -165,6 +176,9 @@ class Database:
         self._ensure_task_group_foreign_key()
         self._ensure_task_group_index()
 
+    def _checkpoint(self) -> None:
+        self._get_conn().execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
     def _table_exists(self, table_name: str) -> bool:
         conn = self._get_conn()
         cursor = conn.execute(
@@ -177,21 +191,21 @@ class Database:
         if not self._table_exists(table_name):
             return set()
         conn = self._get_conn()
-        cursor = conn.execute(f"PRAGMA table_info({table_name})")
+        cursor = conn.execute(f"PRAGMA table_info({self._require_table_name(table_name)})")
         return {row["name"] for row in cursor.fetchall()}
 
     def _count_rows(self, table_name: str) -> int:
         if not self._table_exists(table_name):
             return 0
         conn = self._get_conn()
-        cursor = conn.execute(f"SELECT COUNT(*) AS cnt FROM {table_name}")
+        cursor = conn.execute(f"SELECT COUNT(*) AS cnt FROM {self._require_table_name(table_name)}")
         return int(cursor.fetchone()["cnt"])
 
     def _index_names(self, table_name: str) -> set:
         if not self._table_exists(table_name):
             return set()
         conn = self._get_conn()
-        cursor = conn.execute(f"PRAGMA index_list({table_name})")
+        cursor = conn.execute(f"PRAGMA index_list({self._require_table_name(table_name)})")
         return {row["name"] for row in cursor.fetchall()}
 
     def summarize_counts(self) -> Dict[str, Any]:
@@ -263,40 +277,42 @@ class Database:
         if self._task_group_has_foreign_key():
             return
 
-        with self.transaction() as conn:
-            conn.execute("PRAGMA foreign_keys = OFF")
-            try:
-                conn.execute(
-                    """
-                    CREATE TABLE tasks__migrated (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        title TEXT NOT NULL,
-                        message TEXT,
-                        url TEXT,
-                        cron_expression TEXT NOT NULL,
-                        channel TEXT NOT NULL CHECK(channel IN ('email', 'webhook')),
-                        enabled BOOLEAN NOT NULL DEFAULT 1,
-                        tags TEXT,
-                        group_id INTEGER REFERENCES groups(id),
-                        created_at TEXT NOT NULL,
-                        updated_at TEXT NOT NULL
-                    )
-                    """
+        conn = self._get_conn()
+        conn.execute("PRAGMA foreign_keys = OFF")
+        try:
+            conn.execute(
+                """
+                CREATE TABLE tasks__migrated (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    message TEXT,
+                    url TEXT,
+                    cron_expression TEXT NOT NULL,
+                    channel TEXT NOT NULL CHECK(channel IN ('email', 'webhook')),
+                    enabled BOOLEAN NOT NULL DEFAULT 1,
+                    tags TEXT,
+                    group_id INTEGER REFERENCES groups(id),
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
                 )
-                conn.execute(
-                    """
-                    INSERT INTO tasks__migrated (id, title, message, url, cron_expression, channel, enabled, tags, group_id, created_at, updated_at)
-                    SELECT id, title, message, url, cron_expression, channel, enabled, tags, group_id, created_at, updated_at
-                    FROM tasks
-                    """
-                )
-                conn.execute("DROP TABLE tasks")
-                conn.execute("ALTER TABLE tasks__migrated RENAME TO tasks")
-            except Exception:
-                conn.execute("DROP TABLE IF EXISTS tasks__migrated")
-                raise
-            finally:
-                conn.execute("PRAGMA foreign_keys = ON")
+                """
+            )
+            conn.execute(
+                """
+                INSERT INTO tasks__migrated (id, title, message, url, cron_expression, channel, enabled, tags, group_id, created_at, updated_at)
+                SELECT id, title, message, url, cron_expression, channel, enabled, tags, group_id, created_at, updated_at
+                FROM tasks
+                """
+            )
+            conn.execute("DROP TABLE tasks")
+            conn.execute("ALTER TABLE tasks__migrated RENAME TO tasks")
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            conn.execute("DROP TABLE IF EXISTS tasks__migrated")
+            raise
+        finally:
+            conn.execute("PRAGMA foreign_keys = ON")
 
     def _ensure_task_group_index(self) -> None:
         with self.transaction() as conn:
@@ -350,14 +366,30 @@ class Database:
 
         with self.transaction() as conn:
             cursor = conn.execute("DELETE FROM groups WHERE id = ?", (group_id,))
-            return cursor.rowcount > 0
+            deleted = cursor.rowcount > 0
+            if deleted and group_id == self._default_group_id_cache:
+                self._default_group_id_cache = None
+            return deleted
 
     def count_tasks_by_group(self, group_id: int) -> int:
         conn = self._get_conn()
         cursor = conn.execute("SELECT COUNT(*) AS cnt FROM tasks WHERE group_id = ?", (group_id,))
         return int(cursor.fetchone()["cnt"])
 
+    def get_task_counts_by_group(self) -> Dict[int, int]:
+        conn = self._get_conn()
+        cursor = conn.execute(
+            "SELECT group_id, COUNT(*) AS task_count FROM tasks GROUP BY group_id"
+        )
+        return {row["group_id"]: row["task_count"] for row in cursor.fetchall()}
+
     def ensure_default_group(self) -> Dict[str, Any]:
+        if self._default_group_id_cache is not None:
+            group = self.get_group_by_id(self._default_group_id_cache)
+            if group is not None:
+                return group
+            self._default_group_id_cache = None
+
         conn = self._get_conn()
         cursor = conn.execute("SELECT * FROM groups WHERE name = ? LIMIT 1", ("默认",))
         default_row = cursor.fetchone()
@@ -381,7 +413,9 @@ class Database:
                         "UPDATE groups SET updated_at = ? WHERE id = ?",
                         (now, default_row["id"]),
                     )
-            return self.get_group_by_id(default_row["id"])
+            group = self.get_group_by_id(default_row["id"])
+            self._default_group_id_cache = group["id"]
+            return group
 
         if legacy_row:
             now = current_time_text()
@@ -390,10 +424,14 @@ class Database:
                     "UPDATE groups SET name = ?, updated_at = ? WHERE id = ?",
                     ("默认", now, legacy_row["id"]),
                 )
-            return self.get_group_by_id(legacy_row["id"])
+            group = self.get_group_by_id(legacy_row["id"])
+            self._default_group_id_cache = group["id"]
+            return group
 
         group_id = self.create_group({"sort_order": 1, "name": "默认", "icon": "folder"})
-        return self.get_group_by_id(group_id)
+        group = self.get_group_by_id(group_id)
+        self._default_group_id_cache = group["id"]
+        return group
 
     def backfill_task_groups(self, default_group_id: int):
         if "group_id" not in self._table_columns("tasks"):

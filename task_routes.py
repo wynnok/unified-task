@@ -24,11 +24,10 @@ def register_task_routes(
     @app.route("/")
     def dashboard():
         tasks = db.get_all_tasks()
-        tasks_sorted = sorted(tasks, key=lambda item: item.get("updated_at", ""), reverse=True)
         return render_template(
             "dashboard.html",
             stats=stats_data(tasks),
-            recent=tasks_sorted[:8],
+            recent=tasks[:8],
             scheduler=scheduler,
         )
 

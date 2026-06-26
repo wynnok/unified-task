@@ -47,12 +47,7 @@ def register_group_routes(app, db):
     @app.route("/groups", methods=["GET"])
     def groups_page():
         groups = db.get_all_groups()
-        task_counts = {
-            row["group_id"]: row["task_count"]
-            for row in db._get_conn().execute(
-                "SELECT group_id, COUNT(*) AS task_count FROM tasks GROUP BY group_id"
-            ).fetchall()
-        }
+        task_counts = db.get_task_counts_by_group()
         for group in groups:
             group["task_count"] = task_counts.get(group["id"], 0)
         return render_template("groups.html", groups=groups, icon_options=ICON_OPTIONS)

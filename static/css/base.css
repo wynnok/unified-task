@@ -1,0 +1,148 @@
+/* ============================================
+   统一任务应用 - 设计系统
+   ============================================ */
+
+:root {
+    /* ========== 色彩系统 ========== */
+    /* 基础中性色 */
+    --slate-50: #f8fafc;
+    --slate-100: #f1f5f9;
+    --slate-200: #e2e8f0;
+    --slate-300: #cbd5e1;
+    --slate-400: #94a3b8;
+    --slate-500: #64748b;
+    --slate-600: #475569;
+    --slate-700: #334155;
+    --slate-800: #1e293b;
+    --slate-900: #0f172a;
+
+    /* 主色调 - Sky Blue */
+    --primary-50: #f0f9ff;
+    --primary-100: #e0f2fe;
+    --primary-200: #bae6fd;
+    --primary-300: #7dd3fc;
+    --primary-400: #38bdf8;
+    --primary-500: #0ea5e9;
+    --primary-600: #0284c7;
+    --primary-700: #0369a1;
+    --primary-800: #075985;
+    --primary-900: #0c4a6e;
+
+    /* 功能色 */
+    --success-50: #ecfdf5;
+    --success-100: #d1fae5;
+    --success-500: #10b981;
+    --success-600: #059669;
+    --success-700: #047857;
+
+    --danger-50: #fef2f2;
+    --danger-100: #fee2e2;
+    --danger-500: #ef4444;
+    --danger-600: #dc2626;
+    --danger-700: #b91c1c;
+
+    --warning-50: #fffbeb;
+    --warning-100: #fef3c7;
+    --warning-500: #f59e0b;
+    --warning-600: #d97706;
+    --warning-700: #b45309;
+
+    --info-50: #eff6ff;
+    --info-100: #dbeafe;
+    --info-500: #3b82f6;
+    --info-600: #2563eb;
+
+    /* 语义化颜色 */
+    --bg: #f3f6fa;
+    --card: rgba(255, 255, 255, 0.96);
+    --card-hover: #f8fbff;
+    --text: var(--slate-800);
+    --text-light: var(--slate-500);
+    --text-muted: var(--slate-400);
+    --border: var(--slate-200);
+    --border-light: var(--slate-100);
+
+    --primary: var(--primary-500);
+    --primary-hover: var(--primary-600);
+    --primary-light: var(--primary-100);
+    --primary-soft: var(--primary-50);
+
+    --success: var(--success-500);
+    --success-light: var(--success-100);
+    --danger: var(--danger-500);
+    --danger-light: var(--danger-100);
+    --warning: var(--warning-500);
+    --warning-light: var(--warning-100);
+
+    /* ========== 阴影系统 (5 级) ========== */
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.07);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+
+    /* 彩色阴影 */
+    --shadow-primary: 0 4px 14px rgba(14, 165, 233, 0.25);
+    --shadow-danger: 0 4px 14px rgba(239, 68, 68, 0.25);
+    --shadow-success: 0 4px 14px rgba(16, 185, 129, 0.25);
+
+    /* ========== 圆角系统 ========== */
+    --radius-xs: 4px;
+    --radius-sm: 8px;
+    --radius: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+    --radius-full: 9999px;
+
+    /* ========== 间距系统 (4px 基准) ========== */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-7: 28px;
+    --space-8: 32px;
+    --space-9: 40px;
+    --space-10: 48px;
+    --space-12: 64px;
+    --control-height: 46px;
+    --action-min-width: 112px;
+
+    /* ========== 动效系统 ========== */
+    --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
+    --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+    --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    --transition-fast: 150ms var(--ease-out);
+    --transition: 200ms var(--ease-out);
+    --transition-slow: 300ms var(--ease-out);
+    --transition-spring: 500ms var(--ease-spring);
+}
+
+/* ============================================
+   基础样式
+   ============================================ */
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+/* 图标基础样式 - 加大 20% */
+i.ph,
+.ph {
+    font-size: 1.2em;
+}
+
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    min-height: 100vh;
+    line-height: 1.6;
+    letter-spacing: 0.01em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}

@@ -37,6 +37,7 @@ dist/
 .idea/
 .vscode/
 .claude/
+.omo/
 .env
 .env.*
 

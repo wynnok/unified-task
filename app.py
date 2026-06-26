@@ -6,7 +6,6 @@ import os
 import re
 import secrets
 import smtplib
-import threading
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -99,6 +98,7 @@ def default_settings() -> Dict[str, Any]:
 
 
 def write_json_atomic(path: str, data: Any) -> None:
+    """Deprecated: settings are now stored in SQLite. Only used for initial settings.json bootstrap."""
     temp_path = f"{path}.tmp"
     with open(temp_path, "w", encoding="utf-8") as file:
         json.dump(data, file, ensure_ascii=False, indent=2)
@@ -123,13 +123,11 @@ def load_settings_from_db(db: Database) -> Dict[str, Any]:
         defaults["auth"]["password"] = bootstrap_password
         db.init_default_settings(defaults)
         logging.warning(
-            "首次初始化管理员账号: username=%s password=%s，请登录后立即修改。",
+            "管理员账号已初始化: username=%s，请登录后立即修改密码。",
             defaults["auth"]["username"],
-            bootstrap_password,
         )
         return defaults
 
-    # Reconstruct nested structure
     result = default_settings()
     for key, value in all_settings.items():
         if "." in key:
@@ -139,6 +137,9 @@ def load_settings_from_db(db: Database) -> Dict[str, Any]:
                     result[section][field] = json.loads(value)
                 except json.JSONDecodeError:
                     result[section][field] = value
+
+    if not result["auth"]["password"]:
+        logging.error("管理员密码未设置，请通过环境变量 INITIAL_ADMIN_PASSWORD 初始化")
 
     return result
 
@@ -240,6 +241,13 @@ def sanitize_email_subject(subject: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[\r\n]+", " ", str(subject or ""))).strip()
 
 
+EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+
+
+def is_valid_email(email: str) -> bool:
+    return bool(EMAIL_RE.match(email))
+
+
 def build_email_message(
     task: Dict[str, Any],
     settings: Dict[str, Any],
@@ -328,7 +336,6 @@ def create_app() -> Flask:
 
     db = Database(TASKS_DB)
     scheduler = BackgroundScheduler(timezone=TIMEZONE)
-    scheduler_lock = threading.Lock()
 
     def check_session_timeout() -> Optional[Any]:
         if not session.get("authenticated"):
@@ -437,45 +444,42 @@ def create_app() -> Flask:
 
     def sync_task_job(task: Dict[str, Any]) -> None:
         job_id = task_job_id(task["id"])
-        with scheduler_lock:
-            if not task.get("enabled", True):
-                try:
-                    scheduler.remove_job(job_id)
-                except JobLookupError:
-                    pass
-                return
+        if not task.get("enabled", True):
             try:
-                trigger_args = validate_cron_expression(task["cron_expression"])
-                scheduler.add_job(
-                    dispatch_task,
-                    trigger="cron",
-                    id=job_id,
-                    args=[task["id"]],
-                    misfire_grace_time=300,
-                    replace_existing=True,
-                    **trigger_args,
-                )
-            except Exception as exc:
-                try:
-                    scheduler.remove_job(job_id)
-                except JobLookupError:
-                    pass
-                logging.error(
-                    "Skip task id=%s because config invalid: %s",
-                    task.get("id"),
-                    exc,
-                )
-
-    def remove_task_job(task_id: int) -> None:
-        with scheduler_lock:
-            try:
-                scheduler.remove_job(task_job_id(task_id))
+                scheduler.remove_job(job_id)
             except JobLookupError:
                 pass
+            return
+        try:
+            trigger_args = validate_cron_expression(task["cron_expression"])
+            scheduler.add_job(
+                dispatch_task,
+                trigger="cron",
+                id=job_id,
+                args=[task["id"]],
+                misfire_grace_time=300,
+                replace_existing=True,
+                **trigger_args,
+            )
+        except Exception as exc:
+            try:
+                scheduler.remove_job(job_id)
+            except JobLookupError:
+                pass
+            logging.error(
+                "Skip task id=%s because config invalid: %s",
+                task.get("id"),
+                exc,
+            )
+
+    def remove_task_job(task_id: int) -> None:
+        try:
+            scheduler.remove_job(task_job_id(task_id))
+        except JobLookupError:
+            pass
 
     def sync_all_jobs() -> None:
-        with scheduler_lock:
-            scheduler.remove_all_jobs()
+        scheduler.remove_all_jobs()
         for task in db.get_all_tasks():
             sync_task_job(task)
 
@@ -504,7 +508,7 @@ def create_app() -> Flask:
         if q:
             keyword = q.lower()
 
-            def matches(task: Dict[str, Any]) -> bool:
+            def _matches_keyword(task: Dict[str, Any]) -> bool:
                 haystack = " ".join(
                     [
                         str(task.get("title", "")),
@@ -516,7 +520,7 @@ def create_app() -> Flask:
                 ).lower()
                 return keyword in haystack
 
-            result = [task for task in result if matches(task)]
+            result = [task for task in result if _matches_keyword(task)]
 
         if channel in {"email", "webhook"}:
             result = [task for task in result if task.get("channel") == channel]
@@ -625,9 +629,9 @@ def create_app() -> Flask:
         db=db,
         load_settings_from_db=load_settings_from_db,
         save_settings_to_db=save_settings_to_db,
-        now_text=now_text,
         send_email=send_email,
         send_webhook=send_webhook,
+        is_valid_email=is_valid_email,
     )
     register_group_routes(app=app, db=db)
 
@@ -640,10 +644,10 @@ def create_app() -> Flask:
     return app
 
 
-app = create_app()
+application = create_app()
 
 
 if __name__ == "__main__":
     host = os.environ.get("HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", "8000"))
-    app.run(host=host, port=port)
+    application.run(host=host, port=port)

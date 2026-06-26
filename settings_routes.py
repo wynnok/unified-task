@@ -1,7 +1,9 @@
+from datetime import datetime
+
 from flask import flash, redirect, render_template, request, url_for
 
 
-def register_settings_routes(app, db, load_settings_from_db, save_settings_to_db, now_text, send_email, send_webhook):
+def register_settings_routes(app, db, load_settings_from_db, save_settings_to_db, send_email, send_webhook, is_valid_email):
     @app.route("/settings", methods=["GET"])
     def settings_page():
         return render_template("settings.html", settings=load_settings_from_db(db))
@@ -35,8 +37,17 @@ def register_settings_routes(app, db, load_settings_from_db, save_settings_to_db
         smtp_password_input = request.form.get("smtp_password", "").strip()
         if smtp_password_input:
             settings["smtp"]["password"] = smtp_password_input
-        settings["smtp"]["sender"] = request.form.get("smtp_sender", "").strip()
-        settings["smtp"]["receiver"] = request.form.get("smtp_receiver", "").strip()
+
+        sender = request.form.get("smtp_sender", "").strip()
+        receiver = request.form.get("smtp_receiver", "").strip()
+        if sender and not is_valid_email(sender):
+            flash("SMTP 发件人邮箱格式不正确", "error")
+            return redirect(url_for("settings_page"))
+        if receiver and not is_valid_email(receiver):
+            flash("SMTP 收件人邮箱格式不正确", "error")
+            return redirect(url_for("settings_page"))
+        settings["smtp"]["sender"] = sender
+        settings["smtp"]["receiver"] = receiver
         settings["smtp"]["note"] = request.form.get("smtp_note", "").strip()
 
         settings["webhook"]["base_url"] = request.form.get("webhook_base_url", "").strip()
@@ -52,7 +63,7 @@ def register_settings_routes(app, db, load_settings_from_db, save_settings_to_db
         settings = load_settings_from_db(db)
         test_task = {
             "title": "邮件测试",
-            "message": f"测试消息发送时间: {now_text()}",
+            "message": f"测试消息发送时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             "url": "",
         }
         try:
@@ -67,7 +78,7 @@ def register_settings_routes(app, db, load_settings_from_db, save_settings_to_db
         settings = load_settings_from_db(db)
         test_task = {
             "title": "Webhook 测试",
-            "message": f"测试消息发送时间: {now_text()}",
+            "message": f"测试消息发送时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             "url": "",
         }
         try:
