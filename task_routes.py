@@ -1,9 +1,13 @@
 import io
 import json
-from datetime import datetime
+import calendar
+from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional
+from zoneinfo import ZoneInfo
 
 from flask import flash, jsonify, redirect, render_template, request, send_file, url_for
+
+
 
 
 def register_task_routes(
@@ -12,6 +16,7 @@ def register_task_routes(
     scheduler,
     timezone: str,
     get_next_run_time: Callable[[str], Optional[str]],
+    expand_cron_occurrences: Callable[..., List[datetime]],
     apply_task_filters: Callable[[List[Dict[str, Any]], str, str, str, str, str], List[Dict[str, Any]]],
     parse_task_form: Callable[[], Dict[str, Any]],
     find_task: Callable[[int], Optional[Dict[str, Any]]],
@@ -47,6 +52,14 @@ def register_task_routes(
                 task["tags"] = json.loads(task["tags"]) if isinstance(task["tags"], str) else task["tags"]
 
         filtered_tasks = apply_task_filters(tasks, q, channel, enabled, last_status, group_id)
+
+        tag = request.args.get("tag", "").strip()
+        if tag:
+            filtered_tasks = [
+                task for task in filtered_tasks
+                if isinstance(task.get("tags"), list) and tag in task["tags"]
+            ]
+
         for task in filtered_tasks:
             task["next_run_time"] = get_next_run_time(task["cron_expression"])
 
@@ -59,6 +72,7 @@ def register_task_routes(
             filter_enabled=enabled,
             filter_last_status=last_status,
             filter_group_id=group_id,
+            filter_tag=tag,
             timezone=timezone,
         )
 
@@ -123,6 +137,82 @@ def register_task_routes(
 
         history = db.get_execution_history(task_id, 100)
         return render_template("task_history.html", task=task, history=history)
+
+    @app.route("/calendar")
+    def calendar_page():
+        zone = ZoneInfo(timezone)
+        now = datetime.now(zone)
+
+        def _month_int(name: str, default: int) -> int:
+            try:
+                return int(request.args.get(name, ""))
+            except (TypeError, ValueError):
+                return default
+
+        year = _month_int("year", now.year)
+        month = _month_int("month", now.month)
+        if not 2000 <= year <= 2100:
+            year = now.year
+        if not 1 <= month <= 12:
+            month = now.month
+
+        window_start = datetime(year, month, 1, tzinfo=zone)
+        next_year, next_month_num = (year + 1, 1) if month == 12 else (year, month + 1)
+        window_end = datetime(next_year, next_month_num, 1, tzinfo=zone) - timedelta(seconds=1)
+
+        entries = []
+        overflow = False
+        for task in db.get_all_tasks():
+            if not task.get("enabled", True):
+                continue
+            for occurrence in expand_cron_occurrences(task["cron_expression"], window_start, window_end, now):
+                entries.append({
+                    "task_id": task["id"],
+                    "title": task["title"],
+                    "when": occurrence,
+                    "time_text": occurrence.strftime("%H:%M"),
+                })
+
+        entries.sort(key=lambda e: e["when"])
+        if len(entries) > 600:
+            entries = entries[:600]
+            overflow = True
+
+        day_entries: Dict[int, List[Dict[str, Any]]] = {}
+        for entry in entries:
+            day_entries.setdefault(entry["when"].day, []).append(entry)
+
+        _, last_day = calendar.monthrange(year, month)
+        weeks: List[List[Optional[int]]] = []
+        current_week: List[Optional[int]] = [None] * window_start.weekday()
+        for day in range(1, last_day + 1):
+            current_week.append(day)
+            if len(current_week) == 7:
+                weeks.append(current_week)
+                current_week = []
+        if current_week:
+            weeks.append(current_week + [None] * (7 - len(current_week)))
+
+        prev_year, prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
+        has_prev = prev_year >= 2000
+        has_next = next_year <= 2100
+
+        return render_template(
+            "calendar.html",
+            title="日历",
+            year=year,
+            month=month,
+            weeks=weeks,
+            day_entries=day_entries,
+            upcoming=entries,
+            overflow=overflow,
+            prev_year=prev_year,
+            prev_month=prev_month,
+            next_year=next_year,
+            next_month_num=next_month_num,
+            has_prev=has_prev,
+            has_next=has_next,
+        )
 
     @app.route("/tasks/batch", methods=["POST"])
     def batch_operations():
@@ -207,7 +297,7 @@ def register_task_routes(
 
     @app.route("/monitoring")
     def monitoring():
-        stats = db.get_statistics(30)
+        stats = db.get_statistics(30, timezone_name=timezone)
         tasks = db.get_all_tasks()
 
         return render_template(
@@ -220,6 +310,10 @@ def register_task_routes(
 
     @app.route("/api/statistics")
     def api_statistics():
-        days = request.args.get("days", 7, type=int)
-        stats = db.get_statistics(days)
+        try:
+            days = int(request.args.get("days", 7))
+        except (TypeError, ValueError):
+            days = 7
+        days = max(1, min(365, days))
+        stats = db.get_statistics(days, timezone_name=timezone)
         return jsonify(stats)

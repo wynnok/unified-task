@@ -1,4 +1,5 @@
 import atexit
+import hmac
 import html
 import json
 import logging
@@ -11,7 +12,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from logging.handlers import RotatingFileHandler
 from typing import Any, Dict, List, Optional
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
+from zoneinfo import ZoneInfo
 
 import requests
 from apscheduler.jobstores.base import JobLookupError
@@ -34,6 +36,7 @@ from database import Database
 from group_routes import register_group_routes
 from settings_routes import register_settings_routes
 from task_routes import register_task_routes
+from werkzeug.security import check_password_hash, generate_password_hash
 
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -43,6 +46,25 @@ SETTINGS_FILE = os.environ.get("SETTINGS_FILE", os.path.join(DATA_DIR, "settings
 LOG_DIR = os.environ.get("LOG_DIR", os.path.join(APP_DIR, "logs"))
 TIMEZONE = os.environ.get("APP_TIMEZONE", "Asia/Shanghai")
 SESSION_TIMEOUT = int(os.environ.get("SESSION_TIMEOUT", "30"))
+SESSION_ACTIVITY_REFRESH_SECONDS = int(os.environ.get("SESSION_ACTIVITY_REFRESH_SECONDS", "60"))
+
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Content-Security-Policy": (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://unpkg.com; "
+        "style-src 'self' 'unsafe-inline' https://unpkg.com; "
+        "img-src 'self' data:; "
+        "font-src 'self' https://unpkg.com data:; "
+        "connect-src 'self'; "
+        "object-src 'none'; "
+        "base-uri 'self'; "
+        "form-action 'self'; "
+        "frame-ancestors 'none'"
+    ),
+}
 
 
 def now_text() -> str:
@@ -120,7 +142,11 @@ def load_settings_from_db(db: Database) -> Dict[str, Any]:
         bootstrap_password = os.environ.get("INITIAL_ADMIN_PASSWORD", "").strip()
         if not bootstrap_password:
             bootstrap_password = secrets.token_urlsafe(12)
-        defaults["auth"]["password"] = bootstrap_password
+            logging.warning(
+                "未设置 INITIAL_ADMIN_PASSWORD，已生成随机管理员密码（请登录后立即修改）: %s",
+                bootstrap_password,
+            )
+        defaults["auth"]["password"] = generate_password_hash(bootstrap_password)
         db.init_default_settings(defaults)
         logging.warning(
             "管理员账号已初始化: username=%s，请登录后立即修改密码。",
@@ -182,6 +208,39 @@ def validate_cron_expression(cron_expression: str) -> Dict[str, str]:
     except ValueError as exc:
         raise ValueError(f"Cron 表达式无效: {exc}")
     return trigger_args
+
+
+def expand_cron_occurrences(
+    cron_expression: str,
+    window_start: datetime,
+    window_end: datetime,
+    now: Optional[datetime] = None,
+    max_occurrences: int = 400,
+) -> List[datetime]:
+    """展开 cron 表达式在 [window_start, window_end] 内的未来触发时刻。
+
+    仅返回晚于 now 的触发点（日历视图只看未来）。
+    """
+    try:
+        trigger_args = validate_cron_expression(cron_expression)
+        trigger = CronTrigger(timezone=TIMEZONE, **trigger_args)
+    except ValueError:
+        return []
+
+    effective_start = max(window_start, now) if now else window_start
+    if effective_start > window_end:
+        return []
+
+    occurrence = trigger.get_next_fire_time(None, effective_start)
+    results: List[datetime] = []
+    while (
+        occurrence is not None
+        and occurrence <= window_end
+        and len(results) < max_occurrences
+    ):
+        results.append(occurrence)
+        occurrence = trigger.get_next_fire_time(occurrence, occurrence)
+    return results
 
 
 VAR_PLACEHOLDER_PATTERN = re.compile(r"\{(var[a-zA-Z0-9_]*)\}")
@@ -248,6 +307,41 @@ def is_valid_email(email: str) -> bool:
     return bool(EMAIL_RE.match(email))
 
 
+def is_safe_url(url: str) -> bool:
+    if not url:
+        return True
+    parsed = urlsplit(url)
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+def safe_next_path(next_value: str) -> Optional[str]:
+    next_path = (next_value or "").strip()
+    if not next_path:
+        return None
+    if "\\" in next_path:
+        return None
+    parsed = urlsplit(next_path)
+    if parsed.scheme or parsed.netloc or not parsed.path.startswith("/"):
+        return None
+    return next_path
+
+
+def _tokens_match(a: str, b: str) -> bool:
+    return hmac.compare_digest(a.encode("utf-8"), b.encode("utf-8"))
+
+
+def _looks_hashed(value: str) -> bool:
+    return value.startswith(("pbkdf2:", "scrypt:", "werkzeug:"))
+
+
+def verify_password(stored: str, provided: str) -> bool:
+    if not stored:
+        return False
+    if _looks_hashed(stored):
+        return check_password_hash(stored, provided)
+    return _tokens_match(stored, provided)
+
+
 def build_email_message(
     task: Dict[str, Any],
     settings: Dict[str, Any],
@@ -293,7 +387,7 @@ def send_email(
         db=db,
     )
 
-    with smtplib.SMTP_SSL(smtp["server"], int(smtp["port"])) as server:
+    with smtplib.SMTP_SSL(smtp["server"], int(smtp["port"]), timeout=10) as server:
         server.login(smtp["user"], smtp["password"])
         server.sendmail(smtp["sender"], smtp["receiver"], message.as_string())
 
@@ -303,6 +397,8 @@ def send_webhook(task: Dict[str, Any], settings: Dict[str, Any]) -> None:
     base_url = (webhook.get("base_url") or "").strip()
     if not base_url:
         raise RuntimeError("Webhook 基础地址未配置")
+    if not is_safe_url(base_url):
+        raise RuntimeError("Webhook 基础地址必须为 http 或 https")
 
     encoded_title = quote(task["title"])
     encoded_message = quote(task.get("message", ""))
@@ -329,13 +425,25 @@ def create_app() -> Flask:
     if not secret_key:
         secret_key = secrets.token_urlsafe(32)
         logging.warning("未设置 SECRET_KEY，已使用临时随机值。")
-    app.config["SECRET_KEY"] = secret_key
+    app.config.update(
+        SECRET_KEY=secret_key,
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_SECURE=os.environ.get("SESSION_COOKIE_SECURE", "").lower()
+        in {"1", "true", "yes"},
+    )
 
     setup_logging()
     ensure_data_files()
 
     db = Database(TASKS_DB)
     scheduler = BackgroundScheduler(timezone=TIMEZONE)
+
+    @app.after_request
+    def add_security_headers(response):
+        for header, value in SECURITY_HEADERS.items():
+            response.headers.setdefault(header, value)
+        return response
 
     def check_session_timeout() -> Optional[Any]:
         if not session.get("authenticated"):
@@ -351,13 +459,18 @@ def create_app() -> Flask:
             flash("登录状态已失效，请重新登录", "warning")
             return redirect(url_for("login"))
 
-        last_activity = datetime.strptime(db_session["last_activity"], "%Y-%m-%d %H:%M:%S")
-        if datetime.now() - last_activity > timedelta(minutes=SESSION_TIMEOUT):
+        app_timezone = ZoneInfo(TIMEZONE)
+        last_activity = datetime.strptime(
+            db_session["last_activity"], "%Y-%m-%d %H:%M:%S"
+        ).replace(tzinfo=app_timezone)
+        now = datetime.now(app_timezone)
+        if now - last_activity > timedelta(minutes=SESSION_TIMEOUT):
             session.clear()
             flash("会话已超时，请重新登录", "warning")
             return redirect(url_for("login"))
 
-        db.update_session_activity(session_id)
+        if now - last_activity > timedelta(seconds=SESSION_ACTIVITY_REFRESH_SECONDS):
+            db.update_session_activity(session_id)
         return None
 
     @app.context_processor
@@ -390,7 +503,7 @@ def create_app() -> Flask:
             return None
         form_token = request.form.get("csrf_token", "")
         session_token = session.get("csrf_token", "")
-        if not form_token or not session_token or form_token != session_token:
+        if not form_token or not session_token or not _tokens_match(form_token, session_token):
             abort(400, "CSRF token 校验失败")
         return None
 
@@ -484,7 +597,7 @@ def create_app() -> Flask:
             sync_task_job(task)
 
     def stats_data(tasks: List[Dict[str, Any]]) -> Dict[str, Any]:
-        exec_stats = db.get_statistics(7)
+        exec_stats = db.get_statistics(7, timezone_name=TIMEZONE)
         return {
             "total": len(tasks),
             "enabled": len([task for task in tasks if task.get("enabled", True)]),
@@ -550,6 +663,8 @@ def create_app() -> Flask:
 
         if not title or channel not in {"email", "webhook"}:
             raise ValueError("任务输入不合法")
+        if url and not is_safe_url(url):
+            raise ValueError("URL 不合法")
         if not group_id_text.isdigit():
             raise ValueError("请选择任务分组")
 
@@ -588,14 +703,17 @@ def create_app() -> Flask:
             flash("管理员密码未初始化，请检查服务启动日志中的初始化密码", "error")
             return render_template("login.html")
 
-        if username == config_username and password == config_password:
+        if username == config_username and verify_password(config_password, password):
+            if not _looks_hashed(config_password):
+                db.set_setting("auth.password", json.dumps(generate_password_hash(password)))
             session_id = secrets.token_urlsafe(32)
             session["authenticated"] = True
             session["auth_user"] = username
             session["session_id"] = session_id
             db.create_session(session_id, username)
-            next_path = request.args.get("next", "").strip()
-            if not next_path.startswith("/"):
+            db.delete_expired_sessions(SESSION_TIMEOUT)
+            next_path = safe_next_path(request.args.get("next", ""))
+            if not next_path:
                 next_path = url_for("dashboard")
             return redirect(next_path)
 
@@ -604,8 +722,11 @@ def create_app() -> Flask:
 
     @app.route("/logout", methods=["POST"])
     def logout():
+        session_id = session.get("session_id")
         session.pop("authenticated", None)
         session.pop("auth_user", None)
+        if session_id:
+            db.delete_session(session_id)
         flash("已退出登录", "success")
         return redirect(url_for("login"))
 
@@ -615,6 +736,7 @@ def create_app() -> Flask:
         scheduler=scheduler,
         timezone=TIMEZONE,
         get_next_run_time=get_next_run_time,
+        expand_cron_occurrences=expand_cron_occurrences,
         apply_task_filters=apply_task_filters,
         parse_task_form=parse_task_form,
         find_task=find_task,

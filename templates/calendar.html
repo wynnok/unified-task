@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel">
+    <div class="panel-header panel-header-stack">
+        <div>
+            <h2><i class="ph ph-calendar-blank"></i> 日历</h2>
+            <p class="panel-description">启用任务的未来触发计划，只读展示；点任务名查看执行历史。</p>
+        </div>
+        <div class="dashboard-hero-actions calendar-nav">
+            {% if has_prev %}
+            <a class="btn-link" href="{{ url_for('calendar_page', year=prev_year, month=prev_month) }}">
+                <i class="ph ph-caret-left"></i> 上个月
+            </a>
+            {% endif %}
+            <strong class="calendar-title">{{ year }} 年 {{ month }} 月</strong>
+            {% if has_next %}
+            <a class="btn-link" href="{{ url_for('calendar_page', year=next_year, month=next_month_num) }}">
+                下个月 <i class="ph ph-caret-right"></i>
+            </a>
+            {% endif %}
+            <a class="btn-link" href="{{ url_for('calendar_page') }}">
+                <i class="ph ph-arrow-counter-clockwise"></i> 本月
+            </a>
+        </div>
+    </div>
+
+    <!-- 桌面端：月历网格 -->
+    <div class="calendar-grid-wrap">
+        <div class="calendar-weekdays">
+            <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+        </div>
+        <div class="calendar-grid">
+            {% for week in weeks %}
+            {% for cell in week %}
+            <div class="calendar-cell {{ 'empty' if cell is none else '' }}">
+                {% if cell %}
+                <span class="calendar-day-num">{{ cell }}</span>
+                {% set day_entry_list = day_entries.get(cell) or [] %}
+                {% for entry in day_entry_list[:3] %}
+                <a class="calendar-event" href="{{ url_for('task_history', task_id=entry.task_id) }}" title="{{ entry.title }}">
+                    <span>{{ entry.time_text }}</span> {{ entry.title }}
+                </a>
+                {% endfor %}
+                {% if day_entry_list|length > 3 %}
+                <span class="calendar-more">+{{ day_entry_list|length - 3 }} 更多</span>
+                {% endif %}
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- 移动端：即将执行列表 -->
+    <div class="calendar-timeline">
+        {% if upcoming %}
+        {% for entry in upcoming %}
+        <div class="calendar-timeline-item">
+            <span class="calendar-timeline-date">
+                {{ entry.when.strftime('%m-%d') }}
+                <strong>{{ entry.time_text }}</strong>
+            </span>
+            <a class="calendar-timeline-task" href="{{ url_for('task_history', task_id=entry.task_id) }}">{{ entry.title }}</a>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p class="help-text">本月没有待触发的任务。</p>
+        {% endif %}
+    </div>
+
+    {% if overflow %}
+    <p class="help-text calendar-overflow-tip">触发点过多，仅保留最早的 600 条，请考虑缩小查看范围或调整任务频率。</p>
+    {% endif %}
+</section>
+{% endblock %}

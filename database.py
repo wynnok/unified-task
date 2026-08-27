@@ -5,7 +5,7 @@ import os
 import shutil
 import threading
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from calendar import monthrange
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
@@ -118,6 +118,7 @@ class Database:
 
     def _init_db(self):
         conn = self._get_conn()
+        conn.execute("PRAGMA journal_mode = WAL")
         conn.executescript("""
                 CREATE TABLE IF NOT EXISTS groups (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -614,16 +615,32 @@ class Database:
         )
         return int(cursor.fetchone()["cnt"])
 
-    def get_statistics(self, days: int = 7) -> Dict[str, Any]:
+    def get_statistics(
+        self,
+        days: int = 7,
+        timezone_name: Optional[str] = None,
+        when: Optional[datetime] = None,
+    ) -> Dict[str, Any]:
+        timezone = ZoneInfo(timezone_name or os.environ.get("APP_TIMEZONE", "Asia/Shanghai"))
+        reference = when or datetime.now(timezone)
+        if reference.tzinfo is None:
+            reference = reference.replace(tzinfo=timezone)
+        else:
+            reference = reference.astimezone(timezone)
+        cutoff = (reference - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+
         conn = self._get_conn()
-        cursor = conn.execute("""
+        cursor = conn.execute(
+            """
             SELECT
                 COUNT(CASE WHEN status = 'success' THEN 1 END) as success_count,
                 COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_count,
                 COUNT(*) as total_executions
             FROM execution_history
-            WHERE executed_at >= datetime('now', '-' || ? || ' days')
-        """, (days,))
+            WHERE executed_at >= ?
+            """,
+            (cutoff,),
+        )
         return dict(cursor.fetchone())
 
     def create_session(self, session_id: str, user: str):
@@ -646,6 +663,10 @@ class Database:
         cursor = conn.execute("SELECT * FROM sessions WHERE session_id = ?", (session_id,))
         row = cursor.fetchone()
         return dict(row) if row else None
+
+    def delete_session(self, session_id: str):
+        with self.transaction() as conn:
+            conn.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
 
     def delete_expired_sessions(self, timeout_minutes: int):
         with self.transaction() as conn:

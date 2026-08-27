@@ -1234,6 +1234,32 @@ button:focus-visible,
    打印样式
    ============================================ */
 
+/* ============================================
+   任务标签徽章（Tag）
+   ============================================ */
+
+.task-tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    background: var(--slate-100);
+    border: 1px solid var(--slate-200);
+    color: var(--slate-600);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    transition: var(--transition);
+}
+
+.task-tag-chip:hover {
+    background: var(--primary-50);
+    border-color: var(--primary-200);
+    color: var(--primary-700);
+}
+
 @media print {
     .topbar,
     .logout-form,
@@ -1248,5 +1274,136 @@ button:focus-visible,
     .task-card {
         box-shadow: none;
         border: 1px solid #000;
+    }
+}
+
+/* ============================================
+   日历视图
+   ============================================ */
+
+.calendar-nav {
+    align-items: center;
+}
+
+.calendar-title {
+    font-size: 15px;
+    color: var(--text);
+    white-space: nowrap;
+}
+
+.calendar-weekdays,
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: var(--space-2);
+}
+
+.calendar-weekdays {
+    margin-bottom: var(--space-2);
+}
+
+.calendar-weekdays span {
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-light);
+}
+
+.calendar-cell {
+    min-height: 96px;
+    padding: var(--space-2);
+    background: var(--card);
+    border: 1px solid var(--slate-200);
+    border-radius: var(--radius-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.calendar-cell.empty {
+    background: transparent;
+    border-color: transparent;
+}
+
+.calendar-day-num {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-light);
+}
+
+.calendar-event {
+    display: block;
+    padding: 3px 6px;
+    border-radius: var(--radius-xs);
+    background: var(--primary-50);
+    color: var(--primary-700);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: var(--transition);
+}
+
+.calendar-event:hover {
+    background: var(--primary-100);
+}
+
+.calendar-more {
+    font-size: 11px;
+    color: var(--slate-500);
+}
+
+.calendar-timeline {
+    display: none;
+    flex-direction: column;
+    gap: var(--space-2);
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.calendar-timeline-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background: var(--card);
+    border: 1px solid var(--slate-200);
+    border-radius: var(--radius-sm);
+}
+
+.calendar-timeline-date {
+    flex-shrink: 0;
+    font-size: 12px;
+    color: var(--text-light);
+}
+
+.calendar-timeline-date strong {
+    margin-left: 4px;
+    color: var(--text);
+}
+
+.calendar-timeline-task {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--primary-700);
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.calendar-overflow-tip {
+    margin-top: var(--space-3);
+}
+
+@media (max-width: 768px) {
+    .calendar-grid-wrap {
+        display: none;
+    }
+
+    .calendar-timeline {
+        display: flex;
     }
 }

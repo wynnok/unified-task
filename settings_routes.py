@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from flask import flash, redirect, render_template, request, url_for
+from werkzeug.security import generate_password_hash
 
 
 def register_settings_routes(app, db, load_settings_from_db, save_settings_to_db, send_email, send_webhook, is_valid_email):
@@ -18,7 +19,7 @@ def register_settings_routes(app, db, load_settings_from_db, save_settings_to_db
 
         auth_password_input = request.form.get("auth_password", "").strip()
         if auth_password_input:
-            settings["auth"]["password"] = auth_password_input
+            settings["auth"]["password"] = generate_password_hash(auth_password_input)
 
         settings["auth"]["note"] = request.form.get("auth_note", "").strip()
 

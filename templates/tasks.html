@@ -12,6 +12,7 @@
 <!-- 筛选区域 -->
 <section class="filter-section">
     <form method="get" action="{{ url_for('tasks_page') }}" class="form-grid">
+        {% if filter_tag %}<input type="hidden" name="tag" value="{{ filter_tag }}">{% endif %}
         <label>
             <span><i class="ph ph-magnifying-glass"></i> 关键词</span>
             <input type="text" name="q" value="{{ filter_q or '' }}" placeholder="搜索标题、内容、URL、Cron">
@@ -107,6 +108,11 @@
         <a class="btn-link" href="{{ url_for('tasks_page') }}">
             <i class="ph ph-arrow-counter-clockwise"></i> 重置
         </a>
+        {% if filter_tag %}
+        <a class="btn-link active-filter-chip" href="{{ url_for('tasks_page', q=filter_q, channel=filter_channel, enabled=filter_enabled, last_status=filter_last_status, group_id=filter_group_id) }}">
+            <i class="ph ph-x"></i> 标签：{{ filter_tag }}
+        </a>
+        {% endif %}
     </form>
 </section>
 
@@ -192,6 +198,11 @@
                 </div>
             </div>
             <small class="help-text">邮件适合人工提醒，Webhook 适合集成外部系统。</small>
+        </label>
+        <label>
+            <span><i class="ph ph-tag"></i> 标签</span>
+            <input type="text" name="tags" placeholder="逗号分隔，例如：工作, 重要" {% if not can_create_task %}disabled{% endif %}>
+            <small class="help-text">可选；仅用于筛选查找，不影响调度。</small>
         </label>
         {% if can_create_task %}
         <label>
@@ -319,6 +330,9 @@
                     {% else %}
                         <span class="status-badge muted">未执行</span>
                     {% endif %}
+                    {% for tag in (task.tags or []) %}
+                    <a class="task-tag-chip" href="{{ url_for('tasks_page', q=filter_q, channel=filter_channel, enabled=filter_enabled, last_status=filter_last_status, group_id=filter_group_id, tag=tag) }}" onclick="event.stopPropagation();">{{ tag }}</a>
+                    {% endfor %}
                 </div>
             </div>
             <div class="task-card-meta task-card-meta-grid">
@@ -346,6 +360,10 @@
                 <label>
                     <span><i class="ph ph-link"></i> URL</span>
                     <input type="text" name="url" value="{{ task.url or '' }}">
+                </label>
+                <label>
+                    <span><i class="ph ph-tag"></i> 标签</span>
+                    <input type="text" name="tags" value="{{ task.tags|join(', ') if task.tags else '' }}" placeholder="逗号分隔，例如：工作, 重要">
                 </label>
                 <label>
                     <span><i class="ph ph-clock"></i> Cron</span>
