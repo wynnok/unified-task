@@ -1,11 +1,13 @@
 {% extends "base.html" %}
 
 {% block content %}
-<section class="panel">
+<section class="panel calendar-panel">
     <div class="panel-header panel-header-stack">
         <div>
-            <h2><i class="ph ph-calendar-blank"></i> 日历</h2>
-            <p class="panel-description">启用任务的未来触发计划，只读展示；点任务名查看执行历史。</p>
+            <h2><i class="ph ph-calendar-blank"></i> 日历
+                <span class="panel-badge">{{ upcoming|length }} 个触发点</span>
+            </h2>
+            <p class="panel-description">启用任务的未来触发计划，只读展示；点任务名查看执行历史，点“更多”浮层查看当天全部触发。</p>
         </div>
         <div class="dashboard-hero-actions calendar-nav">
             {% if has_prev %}
@@ -28,22 +30,42 @@
     <!-- 桌面端：月历网格 -->
     <div class="calendar-grid-wrap">
         <div class="calendar-weekdays">
-            <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+            <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span class="weekend">六</span><span class="weekend">日</span>
         </div>
         <div class="calendar-grid">
             {% for week in weeks %}
             {% for cell in week %}
-            <div class="calendar-cell {{ 'empty' if cell is none else '' }}">
+            {% set day_entry_list = day_entries.get(cell) or [] %}
+            <div class="calendar-cell
+                {{ 'empty' if cell is none else '' }}
+                {{ 'today' if today and cell == today else '' }}
+                {{ 'weekend' if loop.index >= 6 else '' }}">
                 {% if cell %}
                 <span class="calendar-day-num">{{ cell }}</span>
-                {% set day_entry_list = day_entries.get(cell) or [] %}
-                {% for entry in day_entry_list[:3] %}
-                <a class="calendar-event" href="{{ url_for('task_history', task_id=entry.task_id) }}" title="{{ entry.title }}">
-                    <span>{{ entry.time_text }}</span> {{ entry.title }}
-                </a>
-                {% endfor %}
+                <div class="calendar-events">
+                    {% for entry in day_entry_list %}
+                    <a class="calendar-event" href="{{ url_for('task_history', task_id=entry.task_id) }}" title="{{ entry.time_text }} {{ entry.title }}">
+                        <span class="calendar-event-time">{{ entry.time_text }}</span><span class="calendar-event-title">{{ entry.title }}</span>
+                    </a>
+                    {% endfor %}
+                </div>
                 {% if day_entry_list|length > 3 %}
-                <span class="calendar-more">+{{ day_entry_list|length - 3 }} 更多</span>
+                <button type="button" class="calendar-more" aria-expanded="false">
+                    <span class="calendar-more-label">+{{ day_entry_list|length - 3 }} 更多</span>
+                </button>
+                <div class="calendar-pop" role="dialog" aria-label="{{ month }} 月 {{ cell }} 日的全部触发">
+                    <div class="calendar-pop-head">
+                        <strong>{{ month }} 月 {{ cell }} 日</strong>
+                        <span>{{ day_entry_list|length }} 个触发</span>
+                    </div>
+                    <div class="calendar-pop-body">
+                        {% for entry in day_entry_list %}
+                        <a class="calendar-event" href="{{ url_for('task_history', task_id=entry.task_id) }}">
+                            <span class="calendar-event-time">{{ entry.time_text }}</span><span class="calendar-event-title">{{ entry.title }}</span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
                 {% endif %}
                 {% endif %}
             </div>
@@ -73,4 +95,74 @@
     <p class="help-text calendar-overflow-tip">触发点过多，仅保留最早的 600 条，请考虑缩小查看范围或调整任务频率。</p>
     {% endif %}
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var activePop = null;
+    var activeBtn = null;
+    var activeCell = null;
+
+    function setBtnLabel(btn, expanded) {
+        btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        btn.querySelector('.calendar-more-label').textContent = expanded ? '收起' : btn.dataset.more;
+    }
+
+    function closePop() {
+        if (activePop) {
+            activePop.classList.remove('open');
+            activeCell.appendChild(activePop);
+            activePop = null;
+        }
+        if (activeBtn) {
+            setBtnLabel(activeBtn, false);
+            activeBtn = null;
+        }
+        activeCell = null;
+    }
+
+    function positionPop(pop, btn) {
+        var r = btn.getBoundingClientRect();
+        var width = Math.max(200, r.width);
+        pop.style.width = width + 'px';
+        var left = Math.min(Math.max(8, r.left), window.innerWidth - width - 8);
+        var top = r.bottom + 6;
+        pop.style.left = left + 'px';
+        pop.style.top = top + 'px';
+        if (pop.offsetHeight && top + pop.offsetHeight > window.innerHeight - 8) {
+            pop.style.top = Math.max(8, r.top - pop.offsetHeight - 6) + 'px';
+        }
+    }
+
+    document.querySelectorAll('.calendar-more').forEach(function (btn) {
+        btn.dataset.more = btn.querySelector('.calendar-more-label').textContent;
+        btn.addEventListener('click', function (event) {
+            event.stopPropagation();
+            var wasOpen = activeBtn === btn;
+            closePop();
+            if (wasOpen) { return; }
+            var cell = btn.closest('.calendar-cell');
+            var pop = cell.querySelector('.calendar-pop');
+            if (!pop) { return; }
+            activeCell = cell;
+            document.body.appendChild(pop);
+            pop.classList.add('open');
+            positionPop(pop, btn);
+            activePop = pop;
+            activeBtn = btn;
+            setBtnLabel(btn, true);
+        });
+    });
+
+    document.addEventListener('click', function (event) {
+        if (activePop && !activePop.contains(event.target)) { closePop(); }
+    });
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') { closePop(); }
+    });
+    window.addEventListener('resize', closePop);
+    window.addEventListener('scroll', closePop, true);
+})();
+</script>
 {% endblock %}

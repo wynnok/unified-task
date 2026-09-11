@@ -236,6 +236,7 @@ def register_task_routes(
             day_entries=day_entries,
             upcoming=entries,
             overflow=overflow,
+            today=now.day if (year, month) == (now.year, now.month) else None,
             prev_year=prev_year,
             prev_month=prev_month,
             next_year=next_year,
