@@ -29,11 +29,41 @@ def register_task_routes(
     @app.route("/")
     def dashboard():
         tasks = db.get_all_tasks()
+        daily = db.get_daily_execution_counts(14, timezone_name=timezone)
+
+        groups = db.get_all_groups()
+        task_counts = db.get_task_counts_by_group()
+        group_dist = sorted(
+            (
+                {"name": group["name"], "value": task_counts.get(group["id"], 0)}
+                for group in groups
+            ),
+            key=lambda item: item["value"],
+            reverse=True,
+        )[:8]
+
+        failed_now = [task for task in tasks if task.get("last_status") == "failed"]
+        never_run = [task for task in tasks if not task.get("last_run_at")]
+        recent = tasks[:8]
+        for task in recent:
+            task["next_run_time"] = get_next_run_time(task["cron_expression"])
+
         return render_template(
             "dashboard.html",
             stats=stats_data(tasks),
-            recent=tasks[:8],
+            recent=recent,
             scheduler=scheduler,
+            chart_data={
+                "daily": daily,
+                "channels": [
+                    {"name": "邮件", "value": len([t for t in tasks if t.get("channel") == "email"])},
+                    {"name": "Webhook", "value": len([t for t in tasks if t.get("channel") == "webhook"])},
+                ],
+                "groups": group_dist,
+            },
+            failed_now=failed_now,
+            never_run=never_run,
+            today_runs=daily[-1]["success"] + daily[-1]["failed"] if daily else 0,
         )
 
     @app.route("/tasks", methods=["GET"])
@@ -294,19 +324,6 @@ def register_task_routes(
             flash(f"导入失败: {e}", "error")
 
         return redirect(url_for("tasks_page"))
-
-    @app.route("/monitoring")
-    def monitoring():
-        stats = db.get_statistics(30, timezone_name=timezone)
-        tasks = db.get_all_tasks()
-
-        return render_template(
-            "monitoring.html",
-            stats=stats,
-            task_count=len(tasks),
-            enabled_count=len([t for t in tasks if t.get("enabled")]),
-            never_run_count=len([t for t in tasks if not t.get("last_run_at")]),
-        )
 
     @app.route("/api/statistics")
     def api_statistics():

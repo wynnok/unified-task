@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ title or "任务提醒" }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <!-- Phosphor Icons -->
-    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Phosphor Icons (本地自托管) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='phosphor/style.css') }}">
 </head>
 <body>
     {% if session.get('authenticated') %}
@@ -37,10 +37,6 @@
             <a class="{% if request.endpoint == 'calendar_page' %}active{% endif %}" href="{{ url_for('calendar_page') }}">
                 <i class="ph ph-calendar-blank"></i>
                 日历
-            </a>
-            <a class="{% if request.endpoint == 'monitoring' %}active{% endif %}" href="{{ url_for('monitoring') }}">
-                <i class="ph ph-chart-line"></i>
-                监控
             </a>
             <a class="{% if request.endpoint in ['settings_page', 'save_settings_route', 'test_email_route', 'test_webhook_route'] %}active{% endif %}" href="{{ url_for('settings_page') }}">
                 <i class="ph ph-gear"></i>
@@ -73,10 +69,6 @@
         <a class="{% if request.endpoint == 'calendar_page' %}active{% endif %}" href="{{ url_for('calendar_page') }}">
             <i class="ph ph-calendar-blank"></i>
             日历
-        </a>
-        <a class="{% if request.endpoint == 'monitoring' %}active{% endif %}" href="{{ url_for('monitoring') }}">
-            <i class="ph ph-chart-line"></i>
-            监控
         </a>
         <a class="{% if request.endpoint in ['settings_page', 'save_settings_route', 'test_email_route', 'test_webhook_route'] %}active{% endif %}" href="{{ url_for('settings_page') }}">
             <i class="ph ph-gear"></i>
@@ -130,5 +122,6 @@
     })();
     </script>
     {% endif %}
+    {% block scripts %}{% endblock %}
 </body>
 </html>

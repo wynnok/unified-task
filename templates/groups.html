@@ -1,169 +1,223 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="panel">
-    <div class="panel-header panel-header-stack">
-        <div>
-            <h2><i class="ph ph-folders"></i> 分组管理</h2>
-            <p class="panel-description">维护任务分组，序号决定展示顺序。</p>
-        </div>
+<section class="page-toolbar">
+    <div>
+        <h2 class="page-title"><i class="ph ph-folders"></i> 分组管理</h2>
+        <p class="page-subtitle">共 {{ groups|length }} 个分组，序号决定展示顺序；分组下仍有任务时无法删除。</p>
     </div>
-    <form method="post" action="{{ url_for('create_group_route') }}" class="form-grid group-create-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <label>
-            <span><i class="ph ph-sort-ascending"></i> 序号</span>
-            <input type="number" name="sort_order" required placeholder="10">
-        </label>
-        <label>
-            <span><i class="ph ph-text-t"></i> 名称</span>
-            <input type="text" name="name" required placeholder="例如：财务">
-        </label>
-        <label>
-            <span><i class="ph ph-smiley"></i> 图标</span>
-            <div class="group-icon-select" data-icon-select>
-                <button type="button" class="group-icon-trigger">
-                    <span class="group-icon-trigger-content">
-                        <i class="ph ph-{{ icon_options[0].value }}"></i>
-                        <span>{{ icon_options[0].label }}</span>
-                    </span>
-                    <i class="ph ph-caret-down"></i>
-                </button>
-                <input type="hidden" name="icon" value="{{ icon_options[0].value }}" required>
-                <div class="group-icon-menu">
-                    {% for option in icon_options %}
-                    <button type="button" class="group-icon-option{% if loop.first %} is-selected{% endif %}" data-icon-value="{{ option.value }}" data-icon-label="{{ option.label }}">
-                        <i class="ph ph-{{ option.value }}"></i>
-                        <span>{{ option.label }}</span>
-                    </button>
-                    {% endfor %}
-                </div>
-            </div>
-        </label>
-        <button type="submit" class="primary group-create-submit">
+    <div class="page-toolbar-actions">
+        <button type="button" class="btn btn-primary" onclick="openGroupModal()">
             <i class="ph ph-plus"></i> 新建分组
         </button>
-    </form>
+    </div>
 </section>
 
-<section class="panel">
-    <div class="panel-header panel-header-stack">
-        <div>
-            <h2><i class="ph ph-list-bullets"></i> 已有分组</h2>
-            <p class="panel-description">默认与已创建分组都显示在这里。</p>
+<section class="panel data-panel">
+    <div class="filter-bar">
+        <div class="filter-field grow">
+            <span class="filter-label"><i class="ph ph-magnifying-glass"></i> 关键词</span>
+            <input type="search" id="groupKeyword" placeholder="按名称筛选分组" oninput="filterGroups(this.value)">
         </div>
     </div>
 
-    {% if groups %}
-        <div class="groups-list">
-            {% for group in groups %}
-            <article class="group-card">
-                <form id="group-update-{{ group.id }}" method="post" action="{{ url_for('update_group_route', group_id=group.id) }}" class="group-card-form">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <label>
-                        <span><i class="ph ph-sort-ascending"></i> 序号</span>
-                        <input type="number" name="sort_order" value="{{ group.sort_order }}" required>
-                    </label>
-                    <label>
-                        <span><i class="ph ph-text-t"></i> 名称</span>
-                        <input type="text" name="name" value="{{ group.name }}" required>
-                    </label>
-                    <label>
-                        <span><i class="ph ph-smiley"></i> 图标</span>
-                        <div class="group-icon-select" data-icon-select>
-                            <button type="button" class="group-icon-trigger">
-                                <span class="group-icon-trigger-content">
-                                    <i class="ph ph-{{ group.icon }}"></i>
-                                    <span>
-                                        {% for option in icon_options %}
-                                        {% if option.value == group.icon %}{{ option.label }}{% endif %}
-                                        {% endfor %}
-                                    </span>
-                                </span>
-                                <i class="ph ph-caret-down"></i>
-                            </button>
-                            <input type="hidden" name="icon" value="{{ group.icon }}" required>
-                            <div class="group-icon-menu">
-                                {% for option in icon_options %}
-                                <button type="button" class="group-icon-option{% if option.value == group.icon %} is-selected{% endif %}" data-icon-value="{{ option.value }}" data-icon-label="{{ option.label }}">
-                                    <i class="ph ph-{{ option.value }}"></i>
-                                    <span>{{ option.label }}</span>
-                                </button>
-                                {% endfor %}
-                            </div>
+    <div class="table-wrap">
+        <table class="data-table" id="groupsTable">
+            <thead>
+                <tr>
+                    <th>分组</th>
+                    <th class="hide-sm">序号</th>
+                    <th>任务数</th>
+                    <th class="actions-cell">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for group in groups %}
+                <tr class="data-row" data-group='{{ {
+                    "id": group.id,
+                    "sort_order": group.sort_order,
+                    "name": group.name,
+                    "icon": group.icon
+                } | tojson }}'>
+                    <td>
+                        <div class="row-title-cell">
+                            <strong class="row-title"><i class="ph ph-{{ group.icon }} row-title-icon"></i>{{ group.name }}</strong>
                         </div>
-                    </label>
-                    <div class="group-card-meta group-card-meta-centered">
-                        <span class="group-badge">
-                            <i class="ph ph-{{ group.icon }}"></i>
-                            {{ group.name }}
-                        </span>
-                        <span class="status-badge muted">{{ group.task_count }} 个任务</span>
-                    </div>
-                </form>
-                <div class="group-card-actions">
-                    <button type="submit" form="group-update-{{ group.id }}" class="primary btn-action group-action-button">
-                        <i class="ph ph-floppy-disk"></i> 保存
-                    </button>
-                    <form method="post" action="{{ url_for('delete_group_route', group_id=group.id) }}" class="group-delete-form">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <button type="submit" class="btn-action btn-danger group-action-button">
-                            <i class="ph ph-trash"></i> 删除
+                    </td>
+                    <td class="hide-sm cell-muted">{{ group.sort_order }}</td>
+                    <td>
+                        <a class="count-link" href="{{ url_for('tasks_page', group_id=group.id) }}">
+                            {{ group.task_count }} 个任务
+                        </a>
+                    </td>
+                    <td class="actions-cell">
+                        <button type="button" class="row-action" title="编辑分组 {{ group.name }}" onclick="openGroupModal(this.closest('tr').dataset.group)">
+                            <i class="ph ph-pencil-simple"></i>编辑
                         </button>
-                    </form>
-                </div>
-            </article>
-            {% endfor %}
-        </div>
-    {% else %}
-        <div class="empty-state">
-            <i class="ph ph-inbox empty-state-icon"></i>
-            <p>暂无分组</p>
-        </div>
-    {% endif %}
+                        <form method="post" action="{{ url_for('delete_group_route', group_id=group.id) }}" class="group-delete-form inline-form" onsubmit="return confirm('确认删除分组「{{ group.name }}」？');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="row-action danger" title="删除分组 {{ group.name }}">
+                                <i class="ph ph-trash"></i>删除
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4">
+                        <div class="empty-state">
+                            <i class="ph ph-inbox empty-state-icon"></i>
+                            <p>暂无分组</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </section>
 
+<!-- 新建 / 编辑分组模态框 -->
+<div class="modal-overlay" id="group-modal" role="dialog" aria-modal="true" aria-labelledby="group-modal-title">
+    <div class="modal modal-sm">
+        <div class="modal-header">
+            <h3 id="group-modal-title">新建分组</h3>
+            <button type="button" class="modal-close" aria-label="关闭" onclick="closeGroupModal()"><i class="ph ph-x"></i></button>
+        </div>
+        <form id="group-modal-form" method="post" action="{{ url_for('create_group_route') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="modal-body field-grid">
+                <label>
+                    <span><i class="ph ph-text-t"></i> 名称</span>
+                    <input type="text" name="name" id="group-name" required placeholder="例如：财务">
+                </label>
+                <label>
+                    <span><i class="ph ph-sort-ascending"></i> 序号</span>
+                    <input type="number" name="sort_order" id="group-sort" required value="10">
+                </label>
+                <label class="field-wide">
+                    <span><i class="ph ph-smiley"></i> 图标</span>
+                    <div class="group-icon-select" data-icon-select id="group-icon-select">
+                        <button type="button" class="group-icon-trigger" aria-haspopup="listbox" aria-expanded="false">
+                            <span class="group-icon-trigger-content">
+                                <i class="ph ph-{{ icon_options[0].value }}"></i>
+                                <span>{{ icon_options[0].label }}</span>
+                            </span>
+                            <i class="ph ph-caret-down"></i>
+                        </button>
+                        <input type="hidden" name="icon" value="{{ icon_options[0].value }}" required>
+                        <div class="group-icon-menu" role="listbox">
+                            {% for option in icon_options %}
+                            <button type="button" class="group-icon-option{% if loop.first %} is-selected{% endif %}" role="option" data-icon-value="{{ option.value }}" data-icon-label="{{ option.label }}">
+                                <i class="ph ph-{{ option.value }}"></i>
+                                <span>{{ option.label }}</span>
+                            </button>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </label>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-link" onclick="closeGroupModal()">取消</button>
+                <button type="submit" class="btn btn-primary"><i class="ph ph-floppy-disk"></i> 保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
 <script>
-document.querySelectorAll('[data-icon-select]').forEach((selectRoot) => {
-    const trigger = selectRoot.querySelector('.group-icon-trigger');
-    const hiddenInput = selectRoot.querySelector('input[name="icon"]');
-    const options = Array.from(selectRoot.querySelectorAll('.group-icon-option'));
-
-    function setSelected(option) {
-        if (!option || !hiddenInput || !trigger) {
-            return;
-        }
-
-        hiddenInput.value = option.dataset.iconValue;
-        options.forEach((item) => item.classList.toggle('is-selected', item === option));
-
-        trigger.querySelector('.group-icon-trigger-content').innerHTML =
-            '<i class="ph ph-' + option.dataset.iconValue + '"></i><span>' + option.dataset.iconLabel + '</span>';
-    }
-
-    trigger.addEventListener('click', function (event) {
-        event.preventDefault();
-        document.querySelectorAll('[data-icon-select].is-open').forEach((item) => {
-            if (item !== selectRoot) {
-                item.classList.remove('is-open');
-            }
-        });
-        selectRoot.classList.toggle('is-open');
+// ---------- 名称筛选（前端过滤） ----------
+function filterGroups(keyword) {
+    var needle = (keyword || '').trim().toLowerCase();
+    document.querySelectorAll('#groupsTable tbody tr[data-group]').forEach(function (row) {
+        var data = JSON.parse(row.dataset.group);
+        row.hidden = needle !== '' && data.name.toLowerCase().indexOf(needle) === -1;
     });
+}
 
-    options.forEach((option) => {
-        option.addEventListener('click', function (event) {
-            event.preventDefault();
-            setSelected(option);
-            selectRoot.classList.remove('is-open');
-        });
+// ---------- 图标选择器 ----------
+var iconSelectRoot = document.getElementById('group-icon-select');
+var iconHiddenInput = iconSelectRoot.querySelector('input[name="icon"]');
+var iconTrigger = iconSelectRoot.querySelector('.group-icon-trigger');
+var iconOptions = Array.from(iconSelectRoot.querySelectorAll('.group-icon-option'));
+
+function setGroupIcon(value, label) {
+    iconHiddenInput.value = value;
+    iconOptions.forEach(function (item) {
+        var selected = item.dataset.iconValue === value;
+        item.classList.toggle('is-selected', selected);
+        item.setAttribute('aria-selected', selected ? 'true' : 'false');
+    });
+    iconTrigger.querySelector('.group-icon-trigger-content').innerHTML =
+        '<i class="ph ph-' + value + '"></i><span>' + label + '</span>';
+}
+
+iconTrigger.addEventListener('click', function (event) {
+    event.preventDefault();
+    var isOpen = iconSelectRoot.classList.toggle('is-open');
+    iconTrigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+});
+
+iconOptions.forEach(function (option) {
+    option.addEventListener('click', function (event) {
+        event.preventDefault();
+        setGroupIcon(option.dataset.iconValue, option.dataset.iconLabel);
+        iconSelectRoot.classList.remove('is-open');
+        iconTrigger.setAttribute('aria-expanded', 'false');
     });
 });
 
 document.addEventListener('click', function (event) {
-    document.querySelectorAll('[data-icon-select].is-open').forEach((selectRoot) => {
-        if (!selectRoot.contains(event.target)) {
-            selectRoot.classList.remove('is-open');
-        }
-    });
+    if (iconSelectRoot.classList.contains('is-open') && !iconSelectRoot.contains(event.target)) {
+        iconSelectRoot.classList.remove('is-open');
+        iconTrigger.setAttribute('aria-expanded', 'false');
+    }
+});
+
+// ---------- 新建 / 编辑模态框 ----------
+var modalOverlay = document.getElementById('group-modal');
+var modalForm = document.getElementById('group-modal-form');
+var modalTitle = document.getElementById('group-modal-title');
+var createActionUrl = modalForm.getAttribute('action');
+var lastFocused = null;
+
+function openGroupModal(groupJson) {
+    lastFocused = document.activeElement;
+    if (groupJson) {
+        var group = JSON.parse(groupJson);
+        modalForm.setAttribute('action', '/groups/' + group.id + '/update');
+        modalTitle.textContent = '编辑分组';
+        document.getElementById('group-name').value = group.name;
+        document.getElementById('group-sort').value = group.sort_order;
+        var option = iconOptions.find(function (item) { return item.dataset.iconValue === group.icon; });
+        setGroupIcon(group.icon, option ? option.dataset.iconLabel : group.icon);
+    } else {
+        modalForm.setAttribute('action', createActionUrl);
+        modalTitle.textContent = '新建分组';
+        modalForm.reset();
+        document.getElementById('group-sort').value = '10';
+        setGroupIcon('{{ icon_options[0].value }}', '{{ icon_options[0].label }}');
+    }
+    modalOverlay.classList.add('is-open');
+    document.body.classList.add('modal-open');
+    document.getElementById('group-name').focus();
+}
+
+function closeGroupModal() {
+    modalOverlay.classList.remove('is-open');
+    document.body.classList.remove('modal-open');
+    if (lastFocused) { lastFocused.focus(); }
+}
+
+modalOverlay.addEventListener('click', function (event) {
+    if (event.target === modalOverlay) { closeGroupModal(); }
+});
+
+document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && modalOverlay.classList.contains('is-open')) {
+        closeGroupModal();
+    }
 });
 </script>
 {% endblock %}

@@ -643,6 +643,48 @@ class Database:
         )
         return dict(cursor.fetchone())
 
+    def get_daily_execution_counts(
+        self,
+        days: int = 14,
+        timezone_name: Optional[str] = None,
+        when: Optional[datetime] = None,
+    ) -> List[Dict[str, Any]]:
+        """按天聚合最近 ``days`` 天（含今天）的成功/失败执行次数，缺失日期补 0。"""
+        timezone = ZoneInfo(timezone_name or os.environ.get("APP_TIMEZONE", "Asia/Shanghai"))
+        reference = when or datetime.now(timezone)
+        if reference.tzinfo is None:
+            reference = reference.replace(tzinfo=timezone)
+        else:
+            reference = reference.astimezone(timezone)
+        start_day = (reference.astimezone(timezone) - timedelta(days=days - 1)).date()
+        cutoff = start_day.strftime("%Y-%m-%d") + " 00:00:00"
+
+        conn = self._get_conn()
+        cursor = conn.execute(
+            """
+            SELECT
+                substr(executed_at, 1, 10) as day,
+                COUNT(CASE WHEN status = 'success' THEN 1 END) as success_count,
+                COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_count
+            FROM execution_history
+            WHERE executed_at >= ?
+            GROUP BY day
+            """,
+            (cutoff,),
+        )
+        rows = {row["day"]: row for row in cursor.fetchall()}
+
+        result = []
+        for offset in range(days):
+            day_text = (start_day + timedelta(days=offset)).isoformat()
+            row = rows.get(day_text)
+            result.append({
+                "date": day_text,
+                "success": int(row["success_count"]) if row else 0,
+                "failed": int(row["failed_count"]) if row else 0,
+            })
+        return result
+
     def create_session(self, session_id: str, user: str):
         now = current_time_text()
         with self.transaction() as conn:

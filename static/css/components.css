@@ -398,80 +398,8 @@ code {
 }
 
 /* ============================================
-   统计卡片
+   批量操作与选择状态
    ============================================ */
-
-.cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: var(--space-5);
-    margin-bottom: var(--space-7);
-}
-
-.card {
-    background: var(--card);
-    border: 1px solid rgba(226, 232, 240, 0.92);
-    border-radius: 18px;
-    padding: var(--space-6);
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
-    transition: var(--transition-spring);
-    position: relative;
-    overflow: hidden;
-}
-
-.card::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, var(--primary), var(--primary-400));
-    transform: scaleX(0);
-    transform-origin: left;
-    transition: transform var(--transition);
-}
-
-.card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
-}
-
-.card:hover::before {
-    transform: scaleX(1);
-}
-
-.card h2 {
-    margin: 0 0 var(--space-2);
-    font-size: 13px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: var(--text-light);
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-}
-
-.card h2 i {
-    line-height: 1;
-}
-
-.batch-panel {
-    margin-bottom: var(--space-6);
-}
-
-.batch-panel-header {
-    margin-bottom: var(--space-4);
-}
-
-.batch-toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: var(--space-4);
-    flex-wrap: wrap;
-}
 
 .select-all-toggle {
     margin: 0;
@@ -496,11 +424,6 @@ code {
     color: var(--primary-700);
 }
 
-.batch-actions {
-    margin-top: 0;
-}
-
-.batch-action-btn:disabled,
 button:disabled,
 .btn:disabled {
     opacity: 0.5;
@@ -516,22 +439,6 @@ button:disabled,
 
 .hidden-form {
     display: none;
-}
-
-.task-select-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-3) var(--space-5) 0;
-    flex-wrap: wrap;
-}
-
-.task-card-meta {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    flex-wrap: wrap;
 }
 
 /* ============================================
@@ -550,11 +457,6 @@ button:disabled,
     vertical-align: middle;
     white-space: nowrap;
     transition: var(--transition);
-}
-
-.task-card-badges .tag,
-.task-card-badges .status-badge {
-    min-height: 24px;
 }
 
 .status-badge i {
@@ -709,16 +611,6 @@ tbody tr:last-child td {
 
 .form-grid.compact {
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-}
-
-.task-create-form,
-.task-edit-form {
-    align-items: end;
-}
-
-.task-create-form .task-form-actions,
-.task-edit-form .task-form-actions {
-    grid-column: 1 / -1;
 }
 
 label {
@@ -1123,47 +1015,146 @@ button:active,
     margin-top: var(--space-2);
 }
 
-/* 任务卡片内的操作按钮 - 统一宽度 */
-.task-card-body .actions-inline {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-    margin-top: var(--space-4);
+/* ============================================
+   模态框（新建 / 编辑）
+   ============================================ */
+
+body.modal-open {
+    overflow: hidden;
 }
 
-.task-card-body .actions-inline .btn-action {
-    width: auto;
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    display: none;
+    align-items: flex-start;
     justify-content: center;
+    padding: var(--space-8) var(--space-4);
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(3px);
+    overflow-y: auto;
 }
 
-.task-form-actions {
+.modal-overlay.is-open {
     display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
+    animation: modalFade var(--transition);
+}
+
+.modal {
+    width: min(620px, 100%);
+    background: var(--card);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-xl);
+    animation: modalPop var(--transition-spring);
+}
+
+.modal-sm {
+    width: min(480px, 100%);
+}
+
+.modal-header {
+    display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-5) var(--space-6);
+    border-bottom: 1px solid var(--border-light);
 }
 
-.task-form-actions > * {
-    min-width: 0;
-}
-
-.task-form-actions .btn,
-.task-form-actions button {
-    width: auto;
-}
-
-.task-actions {
-    display: flex;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-}
-
-.task-actions form {
+.modal-header h3 {
     margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text);
 }
 
-.task-actions button {
-    min-width: 80px;
-    padding: var(--space-2) var(--space-3);
+.modal-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.modal-close:hover {
+    background: var(--slate-100);
+    color: var(--text);
+}
+
+.modal-body {
+    padding: var(--space-6);
+}
+
+.field-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-5);
+    align-items: start;
+}
+
+.field-grid .field-wide {
+    grid-column: 1 / -1;
+}
+
+.field-grid .compact-toggle-field {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+}
+
+.field-grid .compact-toggle-field .switch {
+    width: auto;
+    min-height: 0;
+    height: auto;
+    padding: 9px var(--space-3);
+}
+
+.modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-6);
+    border-top: 1px solid var(--border-light);
+    background: var(--slate-50);
+    border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+}
+
+.modal-footer .btn-link {
+    min-height: 40px;
+    min-width: auto;
+    padding: var(--space-2) var(--space-4);
     font-size: 13px;
+}
+
+.modal-footer .btn {
+    min-height: 40px;
+    min-width: auto;
+    padding: var(--space-2) var(--space-5);
+    font-size: 13px;
+}
+
+@keyframes modalFade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes modalPop {
+    from {
+        opacity: 0;
+        transform: translateY(14px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
 }

@@ -54,10 +54,10 @@ SECURITY_HEADERS = {
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Content-Security-Policy": (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://unpkg.com; "
-        "style-src 'self' 'unsafe-inline' https://unpkg.com; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data:; "
-        "font-src 'self' https://unpkg.com data:; "
+        "font-src 'self' data:; "
         "connect-src 'self'; "
         "object-src 'none'; "
         "base-uri 'self'; "
