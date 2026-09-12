@@ -1118,8 +1118,8 @@
     }
 }
 
-/* SM - 手机 (640px) */
-@media (max-width: 640px) {
+/* MD - 平板 (768px)：导航空间不足，切换为汉堡菜单 */
+@media (max-width: 768px) {
     .hamburger-menu {
         display: flex;
     }
@@ -1128,6 +1128,13 @@
         display: none;
     }
 
+    .topbar h1 {
+        white-space: nowrap;
+    }
+}
+
+/* SM - 手机 (640px) */
+@media (max-width: 640px) {
     .container {
         padding: var(--space-4) var(--space-4) var(--space-6);
     }
