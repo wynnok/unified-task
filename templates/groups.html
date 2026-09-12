@@ -14,10 +14,7 @@
 
 <section class="panel data-panel">
     <div class="filter-bar">
-        <div class="filter-field grow">
-            <span class="filter-label"><i class="ph ph-magnifying-glass"></i> 关键词</span>
-            <input type="search" id="groupKeyword" placeholder="按名称筛选分组" oninput="filterGroups(this.value)">
-        </div>
+        <input type="search" id="groupKeyword" placeholder="按名称筛选分组" aria-label="按名称筛选分组" oninput="filterGroups(this.value)">
     </div>
 
     <div class="table-wrap">
@@ -50,13 +47,13 @@
                         </a>
                     </td>
                     <td class="actions-cell">
-                        <button type="button" class="row-action" title="编辑分组 {{ group.name }}" onclick="openGroupModal(this.closest('tr').dataset.group)">
-                            <i class="ph ph-pencil-simple"></i>编辑
+                        <button type="button" class="row-action" title="编辑分组 {{ group.name }}" aria-label="编辑分组 {{ group.name }}" onclick="openGroupModal(this.closest('tr').dataset.group)">
+                            <i class="ph ph-pencil-simple"></i>
                         </button>
                         <form method="post" action="{{ url_for('delete_group_route', group_id=group.id) }}" class="group-delete-form inline-form" onsubmit="return confirm('确认删除分组「{{ group.name }}」？');">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                            <button type="submit" class="row-action danger" title="删除分组 {{ group.name }}">
-                                <i class="ph ph-trash"></i>删除
+                            <button type="submit" class="row-action danger" title="删除分组 {{ group.name }}" aria-label="删除分组 {{ group.name }}">
+                                <i class="ph ph-trash"></i>
                             </button>
                         </form>
                     </td>
@@ -65,7 +62,7 @@
                 <tr>
                     <td colspan="4">
                         <div class="empty-state">
-                            <i class="ph ph-inbox empty-state-icon"></i>
+                            <i class="ph ph-tray empty-state-icon"></i>
                             <p>暂无分组</p>
                         </div>
                     </td>

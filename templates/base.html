@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f4f6fb">
     <title>{{ title or "任务提醒" }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <!-- Phosphor Icons (本地自托管) -->
@@ -10,49 +11,59 @@
 </head>
 <body>
     {% if session.get('authenticated') %}
-    <header class="topbar">
-        <h1>任务提醒</h1>
+    <!-- 桌面端侧边栏 -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <span class="brand-mark"><i class="ph ph-bell-ringing"></i></span>
+            <span class="brand-text">任务提醒</span>
+        </div>
 
-        <!-- 汉堡菜单按钮 (移动端) -->
+        <nav class="sidebar-nav">
+            <a class="{% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+                <i class="ph ph-squares-four"></i>
+                <span>仪表盘</span>
+            </a>
+            <a class="{% if request.endpoint in ['tasks_page', 'create_task_route', 'update_task', 'delete_task', 'run_task_now', 'task_history'] %}active{% endif %}" href="{{ url_for('tasks_page') }}">
+                <i class="ph ph-list-checks"></i>
+                <span>任务管理</span>
+            </a>
+            <a class="{% if request.endpoint in ['groups_page', 'create_group_route', 'update_group_route', 'delete_group_route'] %}active{% endif %}" href="{{ url_for('groups_page') }}">
+                <i class="ph ph-folders"></i>
+                <span>分组管理</span>
+            </a>
+            <a class="{% if request.endpoint == 'calendar_page' %}active{% endif %}" href="{{ url_for('calendar_page') }}">
+                <i class="ph ph-calendar-blank"></i>
+                <span>日历</span>
+            </a>
+            <a class="{% if request.endpoint in ['settings_page', 'save_settings_route', 'test_email_route', 'test_webhook_route'] %}active{% endif %}" href="{{ url_for('settings_page') }}">
+                <i class="ph ph-gear"></i>
+                <span>设置</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-foot">
+            <form method="post" action="{{ url_for('logout') }}" class="logout-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="logout-btn">
+                    <i class="ph ph-sign-out"></i>
+                    <span>退出登录</span>
+                </button>
+            </form>
+        </div>
+    </aside>
+
+    <!-- 移动 / 平板端顶栏 -->
+    <header class="topbar">
+        <h1><i class="ph ph-bell-ringing"></i> 任务提醒</h1>
+
         <button class="hamburger-menu" id="hamburgerMenu" aria-label="菜单">
             <span></span>
             <span></span>
             <span></span>
         </button>
-
-        <!-- 桌面端导航 -->
-        <nav class="desktop-nav">
-            <a class="{% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
-                <i class="ph ph-squares-four"></i>
-                仪表盘
-            </a>
-            <a class="{% if request.endpoint in ['tasks_page', 'create_task_route', 'update_task', 'delete_task', 'run_task_now', 'task_history'] %}active{% endif %}" href="{{ url_for('tasks_page') }}">
-                <i class="ph ph-list-checks"></i>
-                任务管理
-            </a>
-            <a class="{% if request.endpoint in ['groups_page', 'create_group_route', 'update_group_route', 'delete_group_route'] %}active{% endif %}" href="{{ url_for('groups_page') }}">
-                <i class="ph ph-folders"></i>
-                分组管理
-            </a>
-            <a class="{% if request.endpoint == 'calendar_page' %}active{% endif %}" href="{{ url_for('calendar_page') }}">
-                <i class="ph ph-calendar-blank"></i>
-                日历
-            </a>
-            <a class="{% if request.endpoint in ['settings_page', 'save_settings_route', 'test_email_route', 'test_webhook_route'] %}active{% endif %}" href="{{ url_for('settings_page') }}">
-                <i class="ph ph-gear"></i>
-                设置
-            </a>
-            <form method="post" action="{{ url_for('logout') }}" class="logout-form">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="logout-btn">
-                    <i class="ph ph-sign-out"></i>
-                    退出
-                </button>
-            </form>
-        </nav>
     </header>
 
-    <!-- 移动端导航 -->
+    <!-- 移动 / 平板端导航 -->
     <nav class="mobile-nav" id="mobileNav">
         <a class="{% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
             <i class="ph ph-squares-four"></i>
@@ -78,7 +89,7 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit" class="logout-btn">
                 <i class="ph ph-sign-out"></i>
-                退出
+                退出登录
             </button>
         </form>
     </nav>
