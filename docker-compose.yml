@@ -19,8 +19,8 @@ services:
       - ./data:/app/data
       - ./logs:/app/logs
     networks:
-      - common_bridge_net
+      - docker_bridge_net
 
 networks:
-  common_bridge_net:
+  docker_bridge_net:
     external: true
