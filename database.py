@@ -468,7 +468,28 @@ class Database:
         """)
         return [dict(row) for row in cursor.fetchall()]
 
-    def _task_list_query(self, where_sql: str = "", params: tuple = ()) -> List[Dict[str, Any]]:
+    # 任务列表查询共享的 FROM 子句：任务 + 分组 + 最近一次执行结果
+    _TASK_LIST_FROM = """
+        FROM tasks t
+        LEFT JOIN groups g ON t.group_id = g.id
+        LEFT JOIN (
+            SELECT task_id, status, error, executed_at,
+                   ROW_NUMBER() OVER (PARTITION BY task_id ORDER BY executed_at DESC) as rn
+            FROM execution_history
+        ) eh ON t.id = eh.task_id AND eh.rn = 1
+    """
+
+    def _task_list_query(
+        self,
+        where_sql: str = "",
+        params: tuple = (),
+        limit: Optional[int] = None,
+        offset: int = 0,
+    ) -> List[Dict[str, Any]]:
+        limit_sql = "LIMIT ? OFFSET ?" if limit is not None else ""
+        query_params: tuple = params
+        if limit is not None:
+            query_params = params + (limit, max(offset, 0))
         conn = self._get_conn()
         cursor = conn.execute(f"""
             SELECT t.*,
@@ -477,30 +498,26 @@ class Database:
                    eh.status as last_status,
                    eh.error as last_error,
                    eh.executed_at as last_run_at
-            FROM tasks t
-            LEFT JOIN groups g ON t.group_id = g.id
-            LEFT JOIN (
-                SELECT task_id, status, error, executed_at,
-                       ROW_NUMBER() OVER (PARTITION BY task_id ORDER BY executed_at DESC) as rn
-                FROM execution_history
-            ) eh ON t.id = eh.task_id AND eh.rn = 1
+            {self._TASK_LIST_FROM}
             {where_sql}
             ORDER BY t.id DESC
-        """, params)
+            {limit_sql}
+        """, query_params)
         return [dict(row) for row in cursor.fetchall()]
 
     def get_all_tasks(self) -> List[Dict[str, Any]]:
         return self._task_list_query()
 
-    def get_tasks_filtered(
+    def _task_filter_clause(
         self,
-        q: str = "",
-        channel: str = "",
-        enabled: str = "",
-        last_status: str = "",
-        group_id: str = "",
-    ) -> List[Dict[str, Any]]:
-        """按条件在 SQL 层筛选任务；关键词仅对任务名称做模糊匹配。"""
+        q: str,
+        channel: str,
+        enabled: str,
+        last_status: str,
+        group_id: str,
+        tag: str = "",
+    ) -> tuple[str, List[Any]]:
+        """构建任务列表筛选的 WHERE 子句；关键词仅对任务名称做模糊匹配。"""
         conditions = []
         params: List[Any] = []
 
@@ -528,25 +545,58 @@ class Database:
             except (TypeError, ValueError):
                 conditions.append("0 = 1")
 
+        if tag:
+            # tags 列存的是 JSON 数组文本；非 JSON 内容按空数组处理
+            conditions.append(
+                "EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(t.tags) THEN t.tags ELSE '[]' END) je WHERE je.value = ?)"
+            )
+            params.append(tag)
+
         where_sql = ("WHERE " + " AND ".join(conditions)) if conditions else ""
-        return self._task_list_query(where_sql, tuple(params))
+        return where_sql, params
+
+    def get_tasks_filtered(
+        self,
+        q: str = "",
+        channel: str = "",
+        enabled: str = "",
+        last_status: str = "",
+        group_id: str = "",
+        tag: str = "",
+        limit: Optional[int] = None,
+        offset: int = 0,
+    ) -> List[Dict[str, Any]]:
+        where_sql, params = self._task_filter_clause(q, channel, enabled, last_status, group_id, tag)
+        return self._task_list_query(where_sql, tuple(params), limit, offset)
+
+    def count_tasks_filtered(
+        self,
+        q: str = "",
+        channel: str = "",
+        enabled: str = "",
+        last_status: str = "",
+        group_id: str = "",
+        tag: str = "",
+    ) -> int:
+        where_sql, params = self._task_filter_clause(q, channel, enabled, last_status, group_id, tag)
+        conn = self._get_conn()
+        cursor = conn.execute(f"""
+            SELECT COUNT(*)
+            {self._TASK_LIST_FROM}
+            {where_sql}
+        """, tuple(params))
+        return cursor.fetchone()[0]
 
     def get_task_by_id(self, task_id: int) -> Optional[Dict[str, Any]]:
         conn = self._get_conn()
-        cursor = conn.execute("""
+        cursor = conn.execute(f"""
             SELECT t.*,
                    g.name as group_name,
                    g.icon as group_icon,
                    eh.status as last_status,
                    eh.error as last_error,
                    eh.executed_at as last_run_at
-            FROM tasks t
-            LEFT JOIN groups g ON t.group_id = g.id
-            LEFT JOIN (
-                SELECT task_id, status, error, executed_at,
-                       ROW_NUMBER() OVER (PARTITION BY task_id ORDER BY executed_at DESC) as rn
-                FROM execution_history
-            ) eh ON t.id = eh.task_id AND eh.rn = 1
+            {self._TASK_LIST_FROM}
             WHERE t.id = ?
         """, (task_id,))
         row = cursor.fetchone()

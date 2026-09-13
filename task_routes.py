@@ -1,11 +1,14 @@
 import io
 import json
 import calendar
+import math
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from flask import flash, jsonify, redirect, render_template, request, send_file, url_for
+
+TASKS_PER_PAGE = 20
 
 
 
@@ -72,32 +75,39 @@ def register_task_routes(
         enabled = request.args.get("enabled", "").strip()
         last_status = request.args.get("last_status", "").strip()
         group_id = request.args.get("group_id", "").strip()
+        tag = request.args.get("tag", "").strip()
 
-        filtered_tasks = db.get_tasks_filtered(
+        filter_kwargs = dict(
             q=q,
             channel=channel,
             enabled=enabled,
             last_status=last_status,
             group_id=group_id,
+            tag=tag,
         )
+        total_count = db.count_tasks_filtered(**filter_kwargs)
+        total_pages = max(1, math.ceil(total_count / TASKS_PER_PAGE))
+        try:
+            page = int(request.args.get("page", "1"))
+        except ValueError:
+            page = 1
+        page = min(max(page, 1), total_pages)
+
+        filtered_tasks = db.get_tasks_filtered(limit=TASKS_PER_PAGE, offset=(page - 1) * TASKS_PER_PAGE, **filter_kwargs)
         groups = db.get_all_groups()
 
-        tag = request.args.get("tag", "").strip()
         for task in filtered_tasks:
             if task.get("tags"):
                 task["tags"] = json.loads(task["tags"]) if isinstance(task["tags"], str) else task["tags"]
-
-        if tag:
-            filtered_tasks = [
-                task for task in filtered_tasks
-                if isinstance(task.get("tags"), list) and tag in task["tags"]
-            ]
+                if not isinstance(task["tags"], list):
+                    task["tags"] = []
 
         for task in filtered_tasks:
             task["next_run_time"] = get_next_run_time(task["cron_expression"])
 
+        template = "_task_partial.html" if request.args.get("partial") == "1" else "tasks.html"
         return render_template(
-            "tasks.html",
+            template,
             tasks=filtered_tasks,
             groups=groups,
             filter_q=q,
@@ -106,6 +116,11 @@ def register_task_routes(
             filter_last_status=last_status,
             filter_group_id=group_id,
             filter_tag=tag,
+            has_active_filters=bool(q or channel or enabled or last_status or group_id or tag),
+            page=page,
+            total_pages=total_pages,
+            total_count=total_count,
+            per_page=TASKS_PER_PAGE,
             timezone=timezone,
         )
 

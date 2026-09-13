@@ -398,6 +398,50 @@
 }
 
 /* ============================================
+   分页
+   ============================================ */
+
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border-top: 1px solid var(--border-light);
+}
+
+.pagination .page-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: 32px;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--card);
+    color: var(--text);
+    font-size: 13px;
+    text-decoration: none;
+    transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.pagination a.page-link:hover {
+    border-color: var(--primary-300);
+    background: var(--primary-50, var(--slate-50));
+}
+
+.pagination .page-link.disabled {
+    color: var(--text-muted);
+    opacity: 0.55;
+    pointer-events: none;
+}
+
+.pagination .page-status {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+/* ============================================
    登录页面
    ============================================ */
 

@@ -1,0 +1,167 @@
+{# 任务列表可复用片段：整页与 partial 局部刷新共用，须以 with context 导入 #}
+
+{% macro count_line() -%}
+<span id="task-count-line">共 {{ total_count }} 个任务{% if has_active_filters %}（当前为筛选结果）{% endif %}</span>
+{%- endmacro %}
+
+{% macro pagination_url(page_number) -%}
+{{ url_for('tasks_page', q=filter_q, channel=filter_channel, enabled=filter_enabled, last_status=filter_last_status, group_id=filter_group_id, tag=filter_tag, page=page_number) }}
+{%- endmacro %}
+
+{% macro list_area() -%}
+<div id="task-list-area">
+    <!-- 批量操作条：勾选后出现 -->
+    <div class="batch-bar" id="batchBar">
+        <span class="selection-count active" id="selectionCount">已选择 0 项</span>
+        <div class="actions-inline">
+            <button type="button" class="btn-link" data-batch-action="enable" onclick="submitBatchAction('enable')">
+                <i class="ph ph-check-circle"></i> 启用
+            </button>
+            <button type="button" class="btn-link" data-batch-action="disable" onclick="submitBatchAction('disable')">
+                <i class="ph ph-pause-circle"></i> 停用
+            </button>
+            <button type="button" class="btn-link danger-text" data-batch-action="delete" onclick="submitBatchAction('delete', true)">
+                <i class="ph ph-trash"></i> 删除
+            </button>
+        </div>
+    </div>
+    <form id="batchActionForm" method="post" action="{{ url_for('batch_operations') }}" class="hidden-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="action" id="batchActionInput">
+        <input type="hidden" name="task_ids" id="batchTaskIdsInput">
+    </form>
+
+    <!-- 任务列表 -->
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th class="checkbox-cell"><input type="checkbox" id="selectAllTasks" aria-label="全选当前列表"></th>
+                    <th>任务</th>
+                    <th class="hide-sm">渠道</th>
+                    <th>计划</th>
+                    <th class="hide-sm">最近执行</th>
+                    <th class="switch-cell">启用</th>
+                    <th class="actions-cell">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for task in tasks %}
+                <tr class="data-row {{ 'table-row-danger' if task.last_status == 'failed' else '' }}"
+                    data-task='{{ {
+                        "id": task.id,
+                        "title": task.title,
+                        "message": task.message or "",
+                        "url": task.url or "",
+                        "cron_expression": task.cron_expression,
+                        "channel": task.channel,
+                        "group_id": task.group_id,
+                        "enabled": task.enabled,
+                        "tags": (task.tags or [])|join(", ")
+                    } | tojson }}'>
+                    <td class="checkbox-cell">
+                        <input type="checkbox" class="task-selector" value="{{ task.id }}" aria-label="选择任务 {{ task.title }}">
+                    </td>
+                    <td>
+                        <div class="row-title-cell">
+                            <strong class="row-title">{{ task.title }}</strong>
+                            <div class="row-meta">
+                                <span class="group-badge small">
+                                    <i class="ph ph-{{ task.group_icon or 'folder' }}"></i>
+                                    {{ task.group_name or '默认' }}
+                                </span>
+                                {% for tag in (task.tags or []) %}
+                                <a class="task-tag-chip" href="{{ url_for('tasks_page', q=filter_q, channel=filter_channel, enabled=filter_enabled, last_status=filter_last_status, group_id=filter_group_id, tag=tag) }}" data-tag="{{ tag }}">{{ tag }}</a>
+                                {% endfor %}
+                                {% if task.last_status == 'failed' and task.last_error %}
+                                <span class="row-error" title="{{ task.last_error }}"><i class="ph ph-warning-circle"></i>{{ task.last_error }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </td>
+                    <td class="hide-sm">
+                        <span class="tag {{ 'email' if task.channel == 'email' else 'webhook' }}">
+                            <i class="ph ph-{{ 'envelope-simple' if task.channel == 'email' else 'webhooks-logo' }}"></i>
+                            {{ "邮件" if task.channel == 'email' else "Webhook" }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="row-plan-cell">
+                            <code class="cron-pill">{{ task.cron_expression }}</code>
+                            <span class="row-sub">{{ task.next_run_time or '—' }}</span>
+                        </div>
+                    </td>
+                    <td class="hide-sm">
+                        <div class="row-plan-cell">
+                            <span class="row-time">{{ task.last_run_at or '—' }}</span>
+                            {% if task.last_status == 'success' %}
+                                <span class="status-badge ok"><i class="ph ph-check-circle"></i>成功</span>
+                            {% elif task.last_status == 'failed' %}
+                                <span class="status-badge danger"><i class="ph ph-x-circle"></i>失败</span>
+                            {% else %}
+                                <span class="status-badge muted">未执行</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td class="switch-cell">
+                        <form method="post" action="{{ url_for('update_task', task_id=task.id) }}" class="inline-form">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="title" value="{{ task.title }}">
+                            <input type="hidden" name="message" value="{{ task.message or '' }}">
+                            <input type="hidden" name="url" value="{{ task.url or '' }}">
+                            <input type="hidden" name="cron_expression" value="{{ task.cron_expression }}">
+                            <input type="hidden" name="channel" value="{{ task.channel }}">
+                            <input type="hidden" name="group_id" value="{{ task.group_id }}">
+                            <input type="hidden" name="tags" value="{{ (task.tags or [])|join(',') }}">
+                            <label class="switch">
+                                <input type="checkbox" name="enabled" value="1" {% if task.enabled %}checked{% endif %} onchange="this.form.submit()" aria-label="{{ '停用' if task.enabled else '启用' }}任务 {{ task.title }}">
+                                <span class="slider"></span>
+                            </label>
+                        </form>
+                    </td>
+                    <td class="actions-cell">
+                        <button type="button" class="row-action" title="编辑任务 {{ task.title }}" aria-label="编辑任务 {{ task.title }}" onclick="openTaskModal(this.closest('tr').dataset.task)">
+                            <i class="ph ph-pencil-simple"></i>
+                        </button>
+                        <button type="button" class="row-action run" title="立即执行任务 {{ task.title }}" aria-label="立即执行任务 {{ task.title }}" onclick="runTask('{{ task.id }}')">
+                            <i class="ph ph-play"></i>
+                        </button>
+                        <a class="row-action" title="查看任务 {{ task.title }} 历史" aria-label="查看任务 {{ task.title }} 历史" href="{{ url_for('task_history', task_id=task.id) }}">
+                            <i class="ph ph-clock-counter-clockwise"></i>
+                        </a>
+                        <button type="button" class="row-action danger" title="删除任务 {{ task.title }}" aria-label="删除任务 {{ task.title }}" onclick="if(confirm('确认删除该任务？')) deleteTask('{{ task.id }}')">
+                            <i class="ph ph-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7">
+                        <div class="empty-state">
+                            <i class="ph ph-tray empty-state-icon"></i>
+                            <p>没有符合条件的任务</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if total_pages > 1 %}
+    <nav class="pagination" aria-label="任务列表分页">
+        {% if page > 1 %}
+        <a class="page-link" href="{{ pagination_url(page - 1) }}" data-page="{{ page - 1 }}"><i class="ph ph-caret-left"></i> 上一页</a>
+        {% else %}
+        <span class="page-link disabled" aria-disabled="true"><i class="ph ph-caret-left"></i> 上一页</span>
+        {% endif %}
+        <span class="page-status">第 {{ page }} / {{ total_pages }} 页 · 每页 {{ per_page }} 条</span>
+        {% if page < total_pages %}
+        <a class="page-link" href="{{ pagination_url(page + 1) }}" data-page="{{ page + 1 }}">下一页 <i class="ph ph-caret-right"></i></a>
+        {% else %}
+        <span class="page-link disabled" aria-disabled="true">下一页 <i class="ph ph-caret-right"></i></span>
+        {% endif %}
+    </nav>
+    {% endif %}
+</div>
+{%- endmacro %}
