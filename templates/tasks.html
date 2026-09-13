@@ -3,7 +3,7 @@
 <section class="page-toolbar">
     <div>
         <h2 class="page-title"><i class="ph ph-list-checks"></i> 任务管理</h2>
-        <p class="page-subtitle">共 {{ tasks|length }} 个任务{% if filter_q or filter_channel or filter_enabled or filter_last_status or filter_group_id or filter_tag %}（当前为筛选结果）{% endif %}，选择即查询，回车搜索关键词。</p>
+        <p class="page-subtitle">共 {{ tasks|length }} 个任务{% if filter_q or filter_channel or filter_enabled or filter_last_status or filter_group_id or filter_tag %}（当前为筛选结果）{% endif %}，关键词按任务名称模糊匹配。</p>
     </div>
     <div class="page-toolbar-actions">
         <a class="btn-link" href="{{ url_for('export_tasks') }}">
@@ -19,7 +19,7 @@
     <!-- 查询栏：选择即查询，回车搜索 -->
     <form method="get" action="{{ url_for('tasks_page') }}" class="filter-bar">
         {% if filter_tag %}<input type="hidden" name="tag" value="{{ filter_tag }}">{% endif %}
-        <input type="search" name="q" value="{{ filter_q or '' }}" placeholder="搜索标题、内容、URL、Cron" aria-label="关键词">
+        <input type="search" name="q" value="{{ filter_q or '' }}" placeholder="搜索任务名称" enterkeyhint="search" aria-label="任务名称关键词">
         <select name="channel" data-auto-submit aria-label="渠道">
             <option value="">全部渠道</option>
             <option value="email" {{ 'selected' if filter_channel == 'email' }}>邮件</option>
@@ -40,6 +40,10 @@
             <option value="{{ group.id }}" {{ 'selected' if filter_group_id == (group.id|string) }}>{{ group.name }}</option>
             {% endfor %}
         </select>
+        <div class="filter-actions">
+            <button type="submit" class="btn btn-primary"><i class="ph ph-magnifying-glass"></i> 查询</button>
+            <a class="btn-link" href="{{ url_for('tasks_page') }}"><i class="ph ph-arrow-counter-clockwise"></i> 重置</a>
+        </div>
         {% if filter_q or filter_channel or filter_enabled or filter_last_status or filter_group_id or filter_tag %}
         <a class="active-filter-chip" href="{{ url_for('tasks_page') }}" title="清除全部筛选条件">
             <i class="ph ph-x"></i> {% if filter_tag %}标签：{{ filter_tag }}{% else %}清除筛选{% endif %}

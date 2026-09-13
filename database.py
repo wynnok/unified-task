@@ -168,6 +168,7 @@ class Database:
                 CREATE INDEX IF NOT EXISTS idx_groups_sort_order ON groups(sort_order, id);
                 CREATE INDEX IF NOT EXISTS idx_execution_history_task_id ON execution_history(task_id);
                 CREATE INDEX IF NOT EXISTS idx_execution_history_executed_at ON execution_history(executed_at);
+                CREATE INDEX IF NOT EXISTS idx_execution_history_task_executed ON execution_history(task_id, executed_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_sessions_last_activity ON sessions(last_activity);
             """)
 
@@ -466,6 +467,69 @@ class Database:
             ORDER BY t.id DESC
         """)
         return [dict(row) for row in cursor.fetchall()]
+
+    def _task_list_query(self, where_sql: str = "", params: tuple = ()) -> List[Dict[str, Any]]:
+        conn = self._get_conn()
+        cursor = conn.execute(f"""
+            SELECT t.*,
+                   g.name as group_name,
+                   g.icon as group_icon,
+                   eh.status as last_status,
+                   eh.error as last_error,
+                   eh.executed_at as last_run_at
+            FROM tasks t
+            LEFT JOIN groups g ON t.group_id = g.id
+            LEFT JOIN (
+                SELECT task_id, status, error, executed_at,
+                       ROW_NUMBER() OVER (PARTITION BY task_id ORDER BY executed_at DESC) as rn
+                FROM execution_history
+            ) eh ON t.id = eh.task_id AND eh.rn = 1
+            {where_sql}
+            ORDER BY t.id DESC
+        """, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+    def get_all_tasks(self) -> List[Dict[str, Any]]:
+        return self._task_list_query()
+
+    def get_tasks_filtered(
+        self,
+        q: str = "",
+        channel: str = "",
+        enabled: str = "",
+        last_status: str = "",
+        group_id: str = "",
+    ) -> List[Dict[str, Any]]:
+        """按条件在 SQL 层筛选任务；关键词仅对任务名称做模糊匹配。"""
+        conditions = []
+        params: List[Any] = []
+
+        if q:
+            escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            conditions.append(r"t.title LIKE ? ESCAPE '\'")
+            params.append(f"%{escaped}%")
+
+        if channel in {"email", "webhook"}:
+            conditions.append("t.channel = ?")
+            params.append(channel)
+
+        if enabled == "enabled":
+            conditions.append("t.enabled = 1")
+        elif enabled == "disabled":
+            conditions.append("t.enabled = 0")
+
+        if last_status == "failed":
+            conditions.append("eh.status = 'failed'")
+
+        if group_id:
+            try:
+                params.append(int(group_id))
+                conditions.append("t.group_id = ?")
+            except (TypeError, ValueError):
+                conditions.append("0 = 1")
+
+        where_sql = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+        return self._task_list_query(where_sql, tuple(params))
 
     def get_task_by_id(self, task_id: int) -> Optional[Dict[str, Any]]:
         conn = self._get_conn()

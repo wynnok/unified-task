@@ -608,49 +608,6 @@ def create_app() -> Flask:
             "total_executions": exec_stats.get("total_executions", 0),
         }
 
-    def apply_task_filters(
-        tasks: List[Dict[str, Any]],
-        q: str,
-        channel: str,
-        enabled: str,
-        last_status: str,
-        group_id: str,
-    ) -> List[Dict[str, Any]]:
-        result = tasks
-
-        if q:
-            keyword = q.lower()
-
-            def _matches_keyword(task: Dict[str, Any]) -> bool:
-                haystack = " ".join(
-                    [
-                        str(task.get("title", "")),
-                        str(task.get("message", "")),
-                        str(task.get("url", "")),
-                        str(task.get("cron_expression", "")),
-                        str(task.get("group_name", "")),
-                    ]
-                ).lower()
-                return keyword in haystack
-
-            result = [task for task in result if _matches_keyword(task)]
-
-        if channel in {"email", "webhook"}:
-            result = [task for task in result if task.get("channel") == channel]
-
-        if enabled == "enabled":
-            result = [task for task in result if task.get("enabled", True)]
-        elif enabled == "disabled":
-            result = [task for task in result if not task.get("enabled", True)]
-
-        if last_status == "failed":
-            result = [task for task in result if task.get("last_status") == "failed"]
-
-        if group_id:
-            result = [task for task in result if str(task.get("group_id")) == group_id]
-
-        return result
-
     def parse_task_form() -> Dict[str, Any]:
         title = request.form.get("title", "").strip()
         message = request.form.get("message", "").strip()
@@ -737,7 +694,6 @@ def create_app() -> Flask:
         timezone=TIMEZONE,
         get_next_run_time=get_next_run_time,
         expand_cron_occurrences=expand_cron_occurrences,
-        apply_task_filters=apply_task_filters,
         parse_task_form=parse_task_form,
         find_task=find_task,
         sync_task_job=sync_task_job,

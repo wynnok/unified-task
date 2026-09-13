@@ -17,7 +17,6 @@ def register_task_routes(
     timezone: str,
     get_next_run_time: Callable[[str], Optional[str]],
     expand_cron_occurrences: Callable[..., List[datetime]],
-    apply_task_filters: Callable[[List[Dict[str, Any]], str, str, str, str, str], List[Dict[str, Any]]],
     parse_task_form: Callable[[], Dict[str, Any]],
     find_task: Callable[[int], Optional[Dict[str, Any]]],
     sync_task_job: Callable[[Dict[str, Any]], None],
@@ -74,16 +73,20 @@ def register_task_routes(
         last_status = request.args.get("last_status", "").strip()
         group_id = request.args.get("group_id", "").strip()
 
-        tasks = sorted(db.get_all_tasks(), key=lambda item: item.get("id", 0), reverse=True)
+        filtered_tasks = db.get_tasks_filtered(
+            q=q,
+            channel=channel,
+            enabled=enabled,
+            last_status=last_status,
+            group_id=group_id,
+        )
         groups = db.get_all_groups()
 
-        for task in tasks:
+        tag = request.args.get("tag", "").strip()
+        for task in filtered_tasks:
             if task.get("tags"):
                 task["tags"] = json.loads(task["tags"]) if isinstance(task["tags"], str) else task["tags"]
 
-        filtered_tasks = apply_task_filters(tasks, q, channel, enabled, last_status, group_id)
-
-        tag = request.args.get("tag", "").strip()
         if tag:
             filtered_tasks = [
                 task for task in filtered_tasks
