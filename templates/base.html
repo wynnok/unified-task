@@ -8,6 +8,9 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <!-- Phosphor Icons (本地自托管) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='phosphor/style.css') }}">
+    <!-- 统一确认/提示弹窗与自定义下拉组件 -->
+    <script src="{{ url_for('static', filename='js/ui-dialog.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/ui-select.js') }}" defer></script>
 </head>
 <body>
     {% if session.get('authenticated') %}

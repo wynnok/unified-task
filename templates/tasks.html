@@ -302,6 +302,7 @@ function openTaskModal(taskJson) {
 }
 
 function closeTaskModal() {
+    if (window.UISelect) { UISelect.closeAll(); }
     modalOverlay.classList.remove('is-open');
     document.body.classList.remove('modal-open');
     if (lastFocused) { lastFocused.focus(); }
@@ -341,17 +342,27 @@ function submitBatchAction(action, requiresConfirm) {
     var taskIds = getSelectedTaskIds();
     var actionLabels = { enable: '启用', disable: '停用', delete: '删除' };
     if (!taskIds.length) {
-        alert('请先选择至少一个任务');
+        UIDialog.alert({ title: '提示', message: '请先选择至少一个任务' });
         return;
     }
-    var confirmMessage = action === 'delete'
-        ? '确认删除选中的 ' + taskIds.length + ' 个任务？'
-        : '确认' + actionLabels[action] + '选中的 ' + taskIds.length + ' 个任务？';
-    if (requiresConfirm && !confirm(confirmMessage)) { return; }
 
-    document.getElementById('batchActionInput').value = action;
-    document.getElementById('batchTaskIdsInput').value = taskIds.join(',');
-    document.getElementById('batchActionForm').submit();
+    var apply = function () {
+        document.getElementById('batchActionInput').value = action;
+        document.getElementById('batchTaskIdsInput').value = taskIds.join(',');
+        document.getElementById('batchActionForm').submit();
+    };
+
+    if (!requiresConfirm) { apply(); return; }
+    UIDialog.confirm({
+        title: action === 'delete' ? '删除任务' : '批量' + actionLabels[action] + '任务',
+        message: action === 'delete'
+            ? '确认删除选中的 ' + taskIds.length + ' 个任务？'
+            : '确认' + actionLabels[action] + '选中的 ' + taskIds.length + ' 个任务？',
+        okText: action === 'delete' ? '删除' : '确认',
+        danger: action === 'delete'
+    }).then(function (ok) {
+        if (ok) { apply(); }
+    });
 }
 
 // ---------- 行内操作 ----------
@@ -369,7 +380,16 @@ function submitWithCsrf(actionUrl) {
 }
 
 function runTask(taskId) { submitWithCsrf('/tasks/' + taskId + '/run'); }
-function deleteTask(taskId) { submitWithCsrf('/tasks/' + taskId + '/delete'); }
+function deleteTask(taskId) {
+    UIDialog.confirm({
+        title: '删除任务',
+        message: '确认删除该任务？',
+        okText: '删除',
+        danger: true
+    }).then(function (ok) {
+        if (ok) { submitWithCsrf('/tasks/' + taskId + '/delete'); }
+    });
+}
 
 bindTaskListArea();
 </script>

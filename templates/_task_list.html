@@ -129,7 +129,7 @@
                         <a class="row-action" title="查看任务 {{ task.title }} 历史" aria-label="查看任务 {{ task.title }} 历史" href="{{ url_for('task_history', task_id=task.id) }}">
                             <i class="ph ph-clock-counter-clockwise"></i>
                         </a>
-                        <button type="button" class="row-action danger" title="删除任务 {{ task.title }}" aria-label="删除任务 {{ task.title }}" onclick="if(confirm('确认删除该任务？')) deleteTask('{{ task.id }}')">
+                        <button type="button" class="row-action danger" title="删除任务 {{ task.title }}" aria-label="删除任务 {{ task.title }}" onclick="deleteTask('{{ task.id }}')">
                             <i class="ph ph-trash"></i>
                         </button>
                     </td>
