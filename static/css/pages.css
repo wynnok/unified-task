@@ -420,6 +420,10 @@
     font-size: 14px;
 }
 
+.empty-state .btn {
+    margin-top: var(--space-4);
+}
+
 /* ============================================
    分页
    ============================================ */
@@ -563,7 +567,7 @@
     grid-template-columns: 1fr;
 }
 
-.login-form button {
+.login-form button.primary {
     width: 100%;
     padding: var(--space-4);
     font-size: 15px;

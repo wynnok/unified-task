@@ -123,28 +123,55 @@
         }
     };
 
-    // 带 data-confirm 的表单：首次提交弹确认框，确认后放行
+    // 提交中的表单：标记期间拦截后续 submit（按钮同时会被 CSS 置灰）。
+    // 4 秒后自动解除，避免请求异常中断（如网络错误停在原页）时表单永久锁死
+    function markSubmitting(form) {
+        form.setAttribute('data-ui-submitting', '1');
+        setTimeout(function () {
+            form.removeAttribute('data-ui-submitting');
+        }, 4000);
+    }
+
+    // 带 data-confirm 的表单：首次提交弹确认框，确认后放行；
+    // 其余表单做双击防重复提交（纯前端局部刷新的表单用 data-no-guard 声明跳过）
     document.addEventListener('submit', function (event) {
         var form = event.target;
-        if (!form || !form.hasAttribute('data-confirm')) { return; }
-        if (form.getAttribute('data-confirm-passed') === '1') {
-            form.removeAttribute('data-confirm-passed');
+        if (!form || !form.hasAttribute) { return; }
+
+        if (form.hasAttribute('data-confirm')) {
+            // 确认后的正式提交在防抖窗口内同样拦截（键盘触发不走按钮的 CSS 屏蔽）
+            if (form.getAttribute('data-ui-submitting') === '1') {
+                event.preventDefault();
+                return;
+            }
+            if (form.getAttribute('data-confirm-passed') === '1') {
+                form.removeAttribute('data-confirm-passed');
+                markSubmitting(form);
+                return;
+            }
+            event.preventDefault();
+            UIDialog.confirm({
+                title: form.getAttribute('data-confirm-title') || '请确认操作',
+                message: form.getAttribute('data-confirm'),
+                okText: form.getAttribute('data-confirm-ok') || '确定',
+                danger: form.getAttribute('data-confirm-danger') !== '0'
+            }).then(function (ok) {
+                if (!ok) { return; }
+                form.setAttribute('data-confirm-passed', '1');
+                if (typeof form.requestSubmit === 'function') {
+                    form.requestSubmit(); // 走原生提交校验，会再次触发 submit 事件并由标记放行
+                } else {
+                    form.submit();
+                }
+            });
             return;
         }
-        event.preventDefault();
-        UIDialog.confirm({
-            title: form.getAttribute('data-confirm-title') || '请确认操作',
-            message: form.getAttribute('data-confirm'),
-            okText: form.getAttribute('data-confirm-ok') || '确定',
-            danger: form.getAttribute('data-confirm-danger') !== '0'
-        }).then(function (ok) {
-            if (!ok) { return; }
-            form.setAttribute('data-confirm-passed', '1');
-            if (typeof form.requestSubmit === 'function') {
-                form.requestSubmit(); // 走原生提交校验，会再次触发 submit 事件并由标记放行
-            } else {
-                form.submit();
-            }
-        });
+
+        if (form.hasAttribute('data-no-guard')) { return; }
+        if (form.getAttribute('data-ui-submitting') === '1') {
+            event.preventDefault();
+            return;
+        }
+        markSubmitting(form);
     });
 })();

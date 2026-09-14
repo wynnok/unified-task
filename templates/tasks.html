@@ -17,8 +17,8 @@
 </section>
 
 <section class="panel data-panel">
-    <!-- 查询栏：输入防抖自动搜索，回车立即查询 -->
-    <form method="get" action="{{ url_for('tasks_page') }}" class="filter-bar" id="taskFilterForm">
+    <!-- 查询栏：输入防抖自动搜索，回车立即查询（提交走 fetch 局部刷新，跳过防重复提交守卫） -->
+    <form method="get" action="{{ url_for('tasks_page') }}" class="filter-bar" id="taskFilterForm" data-no-guard>
         {% if filter_tag %}<input type="hidden" name="tag" value="{{ filter_tag }}">{% endif %}
         <input type="search" name="q" id="taskSearchInput" value="{{ filter_q or '' }}" placeholder="搜索任务名称" enterkeyhint="search" aria-label="任务名称关键词">
         <select name="channel" data-auto-submit aria-label="渠道">

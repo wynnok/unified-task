@@ -20,8 +20,8 @@
                 <label>
                     <span><i class="ph ph-lock-key-open"></i> 登录密码</span>
                     <div class="password-field">
-                        <input id="auth_password" type="password" name="auth_password" value="" placeholder="留空则不修改" autocomplete="new-password">
-                        <button id="toggle_auth_password" type="button" class="password-toggle" aria-label="显示密码">
+                        <input type="password" name="auth_password" value="" placeholder="留空则不修改" autocomplete="new-password">
+                        <button type="button" class="password-toggle" aria-label="显示密码">
                             <i class="ph ph-eye"></i>
                         </button>
                     </div>
@@ -51,8 +51,8 @@
                 <label>
                     <span><i class="ph ph-lock-key"></i> SMTP 密码/授权码</span>
                     <div class="password-field">
-                        <input id="smtp_password" type="password" name="smtp_password" value="{{ settings.smtp.password }}">
-                        <button id="toggle_password" type="button" class="password-toggle" aria-label="显示密码">
+                        <input type="password" name="smtp_password" value="{{ settings.smtp.password }}">
+                        <button type="button" class="password-toggle" aria-label="显示密码">
                             <i class="ph ph-eye"></i>
                         </button>
                     </div>
@@ -120,26 +120,4 @@
         </form>
     </div>
 </section>
-
-<script>
-(function () {
-    function bindToggle(buttonId, inputId) {
-        var toggleButton = document.getElementById(buttonId);
-        var passwordInput = document.getElementById(inputId);
-        if (!toggleButton || !passwordInput) {
-            return;
-        }
-
-        toggleButton.addEventListener("click", function () {
-            var showing = passwordInput.type === "text";
-            passwordInput.type = showing ? "password" : "text";
-            toggleButton.innerHTML = showing ? '<i class="ph ph-eye"></i>' : '<i class="ph ph-eye-slash"></i>';
-            toggleButton.setAttribute("aria-label", showing ? "显示密码" : "隐藏密码");
-        });
-    }
-
-    bindToggle("toggle_password", "smtp_password");
-    bindToggle("toggle_auth_password", "auth_password");
-})();
-</script>
 {% endblock %}

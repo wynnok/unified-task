@@ -155,7 +155,13 @@
                     </tr>
                 {% else %}
                     <tr>
-                        <td colspan="6" class="text-center text-muted">暂无任务</td>
+                        <td colspan="6">
+                            <div class="empty-state">
+                                <i class="ph ph-tray empty-state-icon"></i>
+                                <p>还没有任务，去创建第一个提醒吧</p>
+                                <a class="btn btn-primary" href="{{ url_for('tasks_page') }}"><i class="ph ph-plus"></i> 新建任务</a>
+                            </div>
+                        </td>
                     </tr>
                 {% endfor %}
             </tbody>

@@ -4,9 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>登录 - 任务提醒</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <!-- Phosphor Icons (本地自托管) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='phosphor/style.css') }}">
+    <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
 </head>
 <body>
     <main class="login-container">
@@ -14,7 +16,10 @@
             {% if messages %}
                 <section class="flash-wrap login-flash-wrap">
                     {% for category, message in messages %}
-                        <div class="flash {{ category }}">{{ message }}</div>
+                        <div class="flash {{ category }}" role="status">
+                            <span class="flash-message">{{ message }}</span>
+                            <button type="button" class="flash-close" aria-label="关闭提示"><i class="ph ph-x"></i></button>
+                        </div>
                     {% endfor %}
                 </section>
             {% endif %}
@@ -39,7 +44,12 @@
                     </label>
                     <label>
                         <span><i class="ph ph-lock-key"></i> 密码</span>
-                        <input type="password" name="password" required placeholder="请输入密码" autocomplete="current-password">
+                        <div class="password-field">
+                            <input type="password" name="password" required placeholder="请输入密码" autocomplete="current-password">
+                            <button type="button" class="password-toggle" aria-label="显示密码">
+                                <i class="ph ph-eye"></i>
+                            </button>
+                        </div>
                         <small class="help-text">如需重置密码，请在设置页修改。</small>
                     </label>
                     <button type="submit" class="primary">

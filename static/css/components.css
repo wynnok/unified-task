@@ -434,6 +434,44 @@ code {
     flex-shrink: 0;
 }
 
+.flash-message {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.flash-close {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin-left: auto;
+    border: none;
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.flash-close:hover {
+    background: rgba(15, 23, 42, 0.08);
+}
+
+.flash.is-leaving {
+    opacity: 0;
+    transform: translateY(-8px);
+    transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out);
+}
+
+/* 提交中的表单：按钮半透明并屏蔽点击，防止双击重复提交 */
+form[data-ui-submitting] button:not([type="button"]) {
+    opacity: 0.65;
+    pointer-events: none;
+}
+
 /* ============================================
    面板/卡片区域
    ============================================ */

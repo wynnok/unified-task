@@ -1,16 +1,27 @@
+{% set page_titles = {
+    'dashboard': '仪表盘',
+    'tasks_page': '任务管理',
+    'task_history': '执行历史',
+    'groups_page': '分组管理',
+    'calendar_page': '日历',
+    'settings_page': '设置'
+} %}
 <!doctype html>
 <html lang="zh-CN">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f4f6fb">
-    <title>{{ title or "任务提醒" }}</title>
+    {% set page_title = page_titles.get(request.endpoint) %}
+    <title>{{ page_title ~ ' - 任务提醒' if page_title else '任务提醒' }}</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <!-- Phosphor Icons (本地自托管) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='phosphor/style.css') }}">
     <!-- 统一确认/提示弹窗与自定义下拉组件 -->
     <script src="{{ url_for('static', filename='js/ui-dialog.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/ui-select.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
 </head>
 <body>
     {% if session.get('authenticated') %}
@@ -103,7 +114,10 @@
             {% if messages %}
                 <section class="flash-wrap">
                     {% for category, message in messages %}
-                        <div class="flash {{ category }}">{{ message }}</div>
+                        <div class="flash {{ category }}" role="status">
+                            <span class="flash-message">{{ message }}</span>
+                            <button type="button" class="flash-close" aria-label="关闭提示"><i class="ph ph-x"></i></button>
+                        </div>
                     {% endfor %}
                 </section>
             {% endif %}
