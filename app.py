@@ -112,9 +112,7 @@ def default_settings() -> Dict[str, Any]:
             "note": "",
         },
         "webhook": {
-            "base_url": "",
-            "default_params": "",
-            "note": "",
+            "targets": [],
         },
     }
 
@@ -167,7 +165,39 @@ def load_settings_from_db(db: Database) -> Dict[str, Any]:
     if not result["auth"]["password"]:
         logging.error("管理员密码未设置，请通过环境变量 INITIAL_ADMIN_PASSWORD 初始化")
 
+    _migrate_legacy_webhook_settings(result, all_settings)
+
     return result
+
+
+def _migrate_legacy_webhook_settings(settings: Dict[str, Any], stored_keys: Dict[str, str]) -> None:
+    """旧版只有单一 base_url（GET 路径风格）；首次加载时合成一个 Webhook 通道。"""
+    raw_targets = stored_keys.get("webhook.targets")
+    if raw_targets:
+        try:
+            if json.loads(raw_targets):
+                return  # 已有通道配置，无需迁移
+        except json.JSONDecodeError:
+            pass
+
+    legacy_base_url = str(settings["webhook"].get("base_url") or "").strip()
+    if not legacy_base_url:
+        settings["webhook"]["targets"] = []
+        return
+
+    default_params = str(settings["webhook"].get("default_params") or "").strip().lstrip("?")
+    query_template = default_params
+    query_template += ("&" if query_template else "") + "url={{url}}"
+
+    settings["webhook"]["targets"] = [{
+        "id": 1,
+        "name": "默认通道",
+        "method": "get",
+        "url": f"{legacy_base_url.rstrip('/')}/{{{{title}}}}/{{{{content}}}}",
+        "template": query_template,
+        "note": "由旧版 Webhook 配置自动迁移",
+    }]
+    logging.info("已将旧版 Webhook 基础地址迁移为默认 Webhook 通道，可在设置页调整")
 
 
 def save_settings_to_db(db: Database, settings: Dict[str, Any]) -> None:
@@ -392,31 +422,187 @@ def send_email(
         server.sendmail(smtp["sender"], smtp["receiver"], message.as_string())
 
 
+WEBHOOK_METHODS = ("get", "post_json", "post_form")
+
+WEBHOOK_PLACEHOLDER_PATTERN = re.compile(r"\{\{(\w+)\}\}")
+
+_WEBHOOK_SAMPLE_VARS = {
+    "title": "样例标题",
+    "content": "样例内容",
+    "url": "https://example.com/detail",
+    "time": "2026-01-01 09:00:00",
+}
+
+
+def build_webhook_vars(task: Dict[str, Any]) -> Dict[str, str]:
+    return {
+        "title": str(task.get("title", "") or ""),
+        "content": str(task.get("message", "") or ""),
+        "url": str(task.get("url", "") or ""),
+        "time": now_text(),
+    }
+
+
+def _render_webhook_text(template: str, vars: Dict[str, str], encode_value) -> str:
+    """替换模板中的 {{key}} 占位符；未识别的占位符原样保留，便于排查拼写问题。"""
+    def replace_placeholder(match: re.Match) -> str:
+        key = match.group(1)
+        if key not in vars:
+            return match.group(0)
+        return encode_value(vars[key])
+
+    return WEBHOOK_PLACEHOLDER_PATTERN.sub(replace_placeholder, template)
+
+
+def render_webhook_url(url: str, vars: Dict[str, str]) -> str:
+    """渲染 GET 请求地址，占位符值按 URL 编码（支持路径风格模板）。"""
+    return _render_webhook_text(url, vars, lambda value: quote(value, safe=""))
+
+
+def render_webhook_query(template: str, vars: Dict[str, str]) -> str:
+    """渲染 GET 查询参数模板，占位符值按 URL 编码。"""
+    return _render_webhook_text(template, vars, lambda value: quote(value, safe=""))
+
+
+def render_webhook_form_body(template: str, vars: Dict[str, str]) -> str:
+    """渲染表单编码请求体，占位符值按 URL 编码。"""
+    return _render_webhook_text(template, vars, lambda value: quote(value, safe=""))
+
+
+def render_webhook_json_body(template: str, vars: Dict[str, str]) -> str:
+    """渲染 JSON 请求体模板：占位符值先做 JSON 字符串转义再嵌入，渲染结果必须可被解析。"""
+    if not template.strip():
+        raise RuntimeError("JSON 请求体模板不能为空")
+    body = _render_webhook_text(
+        template,
+        vars,
+        lambda value: json.dumps(value, ensure_ascii=False)[1:-1],
+    )
+    try:
+        json.loads(body)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"渲染后的请求体不是合法 JSON（字符串占位符需写在引号内，如 \"{{{{title}}}}\"）: {exc}")
+    return body
+
+
+def validate_webhook_targets(raw_targets: Any) -> tuple:
+    """归一化并校验 Webhook 通道列表，返回 (targets, 错误信息或 None)。"""
+    if not isinstance(raw_targets, list):
+        return [], "Webhook 通道配置必须是数组"
+
+    result = []
+    for index, raw in enumerate(raw_targets):
+        if not isinstance(raw, dict):
+            return [], f"第 {index + 1} 个 Webhook 通道配置不合法"
+        name = str(raw.get("name", "") or "").strip() or f"通道 {index + 1}"
+        method = str(raw.get("method", "") or "get").strip()
+        if method not in WEBHOOK_METHODS:
+            return [], f"通道「{name}」的请求方式不合法"
+        url = str(raw.get("url", "") or "").strip()
+        if not url:
+            return [], f"通道「{name}」的地址不能为空"
+        if not is_safe_url(url):
+            return [], f"通道「{name}」的地址必须为 http 或 https"
+        template = str(raw.get("template", "") or "")
+        if method == "post_json":
+            try:
+                render_webhook_json_body(template, _WEBHOOK_SAMPLE_VARS)
+            except RuntimeError as exc:
+                return [], f"通道「{name}」的 JSON 模板无效: {exc}"
+        note = str(raw.get("note", "") or "").strip()
+        raw_id = raw.get("id")
+        target_id = raw_id if isinstance(raw_id, int) and raw_id > 0 else None
+        result.append({
+            "id": target_id,
+            "name": name,
+            "method": method,
+            "url": url,
+            "template": template,
+            "note": note,
+        })
+
+    existing_ids = [target["id"] for target in result if target["id"] is not None]
+    next_id = max(existing_ids, default=0) + 1
+    for target in result:
+        if target["id"] is None:
+            target["id"] = next_id
+            next_id += 1
+    return result, None
+
+
+def _resolve_webhook_target(task: Dict[str, Any], targets: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """按任务的 webhook_id 找通道；未指定或已失效时回退到第一个通道。"""
+    webhook_id = task.get("webhook_id")
+    for target in targets:
+        if webhook_id is not None and target.get("id") == webhook_id:
+            return target
+    logging.info(
+        "Webhook target %s not found, falling back to the first channel",
+        webhook_id,
+    )
+    return targets[0]
+
+
 def send_webhook(task: Dict[str, Any], settings: Dict[str, Any]) -> None:
-    webhook = settings["webhook"]
-    base_url = (webhook.get("base_url") or "").strip()
-    if not base_url:
-        raise RuntimeError("Webhook 基础地址未配置")
-    if not is_safe_url(base_url):
-        raise RuntimeError("Webhook 基础地址必须为 http 或 https")
+    targets = (settings.get("webhook") or {}).get("targets") or []
+    if not targets:
+        raise RuntimeError("Webhook 通道未配置，请先在设置页添加")
 
-    encoded_title = quote(task["title"])
-    encoded_message = quote(task.get("message", ""))
-    final_url = f"{base_url.rstrip('/')}/{encoded_title}/{encoded_message}"
+    target = _resolve_webhook_target(task, targets)
+    url = str(target.get("url", "") or "").strip()
+    if not url:
+        raise RuntimeError(f"Webhook 通道「{target.get('name')}」的地址未配置")
+    if not is_safe_url(url):
+        raise RuntimeError("Webhook 地址必须为 http 或 https")
 
-    query_parts = []
-    task_url = (task.get("url") or "").strip()
-    default_params = (webhook.get("default_params") or "").strip()
-    if task_url:
-        query_parts.append(f"url={quote(task_url)}")
-    if default_params:
-        query_parts.append(default_params.lstrip("?"))
-    if query_parts:
-        final_url = f"{final_url}?{'&'.join(query_parts)}"
+    method = target.get("method") or "get"
+    template = str(target.get("template", "") or "")
+    vars = build_webhook_vars(task)
 
-    response = requests.get(final_url, timeout=10)
-    if response.status_code != 200:
+    if method == "get":
+        final_url = render_webhook_url(url, vars)
+        query = render_webhook_query(template, vars)
+        if query:
+            final_url += ("&" if "?" in final_url else "?") + query
+        response = requests.get(final_url, timeout=10)
+    elif method == "post_json":
+        body = render_webhook_json_body(template, vars)
+        response = requests.post(
+            url,
+            data=body.encode("utf-8"),
+            headers={"Content-Type": "application/json; charset=utf-8"},
+            timeout=10,
+        )
+    elif method == "post_form":
+        body = render_webhook_form_body(template, vars)
+        response = requests.post(
+            url,
+            data=body.encode("utf-8"),
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=10,
+        )
+    else:
+        raise RuntimeError(f"不支持的 Webhook 请求方式: {method}")
+
+    if not 200 <= response.status_code < 300:
         raise RuntimeError(f"Webhook failed with status={response.status_code}")
+
+
+def backfill_webhook_task_targets(db: Database) -> None:
+    """仅有一个 Webhook 通道时，把未指定或指向失效通道的 webhook 任务回填到该通道。
+
+    旧版任务没有 webhook_id，导入的任务可能引用已删除的通道；回填保证
+    列表页的启停开关和定时发送继续可用。
+    """
+    targets = load_settings_from_db(db)["webhook"].get("targets") or []
+    if len(targets) != 1:
+        return
+    updated = db.backfill_webhook_task_targets(
+        targets[0]["id"],
+        [target["id"] for target in targets],
+    )
+    if updated:
+        logging.info("已回填 %d 个 Webhook 任务到通道「%s」", updated, targets[0]["name"])
 
 
 def create_app() -> Flask:
@@ -608,6 +794,21 @@ def create_app() -> Flask:
             "total_executions": exec_stats.get("total_executions", 0),
         }
 
+    def resolve_form_webhook_id(webhook_id_text: str) -> int:
+        """校验表单提交的 Webhook 通道；未选或失效时，仅有一个通道则自动采用。"""
+        targets = load_settings_from_db(db)["webhook"].get("targets") or []
+        if not targets:
+            raise ValueError("请先在设置页配置 Webhook 通道")
+
+        if webhook_id_text.isdigit():
+            webhook_id = int(webhook_id_text)
+            if any(target.get("id") == webhook_id for target in targets):
+                return webhook_id
+
+        if len(targets) == 1:
+            return targets[0]["id"]
+        raise ValueError("请选择有效的 Webhook 通道")
+
     def parse_task_form() -> Dict[str, Any]:
         title = request.form.get("title", "").strip()
         message = request.form.get("message", "").strip()
@@ -631,6 +832,10 @@ def create_app() -> Flask:
 
         validate_cron_expression(cron_expression)
 
+        webhook_id = None
+        if channel == "webhook":
+            webhook_id = resolve_form_webhook_id(request.form.get("webhook_id", "").strip())
+
         return {
             "title": title,
             "message": message,
@@ -640,6 +845,7 @@ def create_app() -> Flask:
             "enabled": enabled,
             "tags": [t.strip() for t in tags.split(",") if t.strip()],
             "group_id": group_id,
+            "webhook_id": webhook_id,
         }
 
     @app.route("/login", methods=["GET", "POST"])
@@ -701,6 +907,7 @@ def create_app() -> Flask:
         sync_all_jobs=sync_all_jobs,
         dispatch_task=dispatch_task,
         stats_data=stats_data,
+        get_webhook_targets=lambda: (load_settings_from_db(db).get("webhook") or {}).get("targets") or [],
     )
     register_settings_routes(
         app=app,
@@ -710,9 +917,11 @@ def create_app() -> Flask:
         send_email=send_email,
         send_webhook=send_webhook,
         is_valid_email=is_valid_email,
+        validate_webhook_targets=validate_webhook_targets,
     )
     register_group_routes(app=app, db=db)
 
+    backfill_webhook_task_targets(db)
     sync_all_jobs()
     scheduler.start()
     atexit.register(

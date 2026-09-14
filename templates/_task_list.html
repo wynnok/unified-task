@@ -56,6 +56,7 @@
                         "cron_expression": task.cron_expression,
                         "channel": task.channel,
                         "group_id": task.group_id,
+                        "webhook_id": task.webhook_id,
                         "enabled": task.enabled,
                         "tags": (task.tags or [])|join(", ")
                     } | tojson }}'>
@@ -112,6 +113,7 @@
                             <input type="hidden" name="cron_expression" value="{{ task.cron_expression }}">
                             <input type="hidden" name="channel" value="{{ task.channel }}">
                             <input type="hidden" name="group_id" value="{{ task.group_id }}">
+                            <input type="hidden" name="webhook_id" value="{{ task.webhook_id or (webhook_targets[0].id if webhook_targets else '') }}">
                             <input type="hidden" name="tags" value="{{ (task.tags or [])|join(',') }}">
                             <label class="switch">
                                 <input type="checkbox" name="enabled" value="1" {% if task.enabled %}checked{% endif %} onchange="this.form.submit()" aria-label="{{ '停用' if task.enabled else '启用' }}任务 {{ task.title }}">

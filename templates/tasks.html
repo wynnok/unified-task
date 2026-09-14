@@ -90,6 +90,19 @@
                         <option value="webhook">Webhook</option>
                     </select>
                 </label>
+                <label id="task-webhook-wrap" style="display:none">
+                    <span><i class="ph ph-webhooks-logo"></i> Webhook 通道</span>
+                    <select name="webhook_id" id="task-webhook-id" disabled>
+                        {% for target in webhook_targets %}
+                        <option value="{{ target.id }}">{{ target.name }}</option>
+                        {% else %}
+                        <option value="">请先在设置页配置 Webhook 通道</option>
+                        {% endfor %}
+                    </select>
+                    {% if not webhook_targets %}
+                    <small class="help-text">尚未配置 Webhook 通道，请先到「发送配置」添加。</small>
+                    {% endif %}
+                </label>
                 <label>
                     <span><i class="ph ph-tag"></i> 标签</span>
                     <input type="text" name="tags" id="task-tags" placeholder="逗号分隔，例如：工作, 重要">
@@ -288,6 +301,7 @@ function openTaskModal(taskJson) {
         document.getElementById('task-url').value = task.url;
         document.getElementById('task-cron').value = task.cron_expression;
         document.getElementById('task-channel').value = task.channel;
+        document.getElementById('task-webhook-id').value = task.webhook_id || '';
         document.getElementById('task-group').value = task.group_id;
         document.getElementById('task-tags').value = task.tags;
         document.getElementById('task-enabled').checked = !!task.enabled;
@@ -296,6 +310,7 @@ function openTaskModal(taskJson) {
         modalTitle.textContent = '新建任务';
         modalForm.reset();
     }
+    syncWebhookFieldVisibility();
     modalOverlay.classList.add('is-open');
     document.body.classList.add('modal-open');
     document.getElementById('task-title').focus();
@@ -316,6 +331,18 @@ document.addEventListener('keydown', function (event) {
         closeTaskModal();
     }
 });
+
+// ---------- 发送渠道联动：Webhook 通道选择 ----------
+var taskChannelSelect = document.getElementById('task-channel');
+var webhookWrap = document.getElementById('task-webhook-wrap');
+var webhookSelect = document.getElementById('task-webhook-id');
+
+function syncWebhookFieldVisibility() {
+    var isWebhook = taskChannelSelect.value === 'webhook';
+    webhookWrap.style.display = isWebhook ? '' : 'none';
+    webhookSelect.disabled = !isWebhook;
+}
+taskChannelSelect.addEventListener('change', syncWebhookFieldVisibility);
 
 // ---------- 批量操作 ----------
 function getSelectedTaskIds() {

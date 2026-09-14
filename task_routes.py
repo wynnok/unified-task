@@ -27,6 +27,7 @@ def register_task_routes(
     sync_all_jobs: Callable[[], None],
     dispatch_task: Callable[[int], None],
     stats_data: Callable[[List[Dict[str, Any]]], Dict[str, Any]],
+    get_webhook_targets: Callable[[], List[Dict[str, Any]]],
 ):
     @app.route("/")
     def dashboard():
@@ -110,6 +111,7 @@ def register_task_routes(
             template,
             tasks=filtered_tasks,
             groups=groups,
+            webhook_targets=get_webhook_targets(),
             filter_q=q,
             filter_channel=channel,
             filter_enabled=enabled,

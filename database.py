@@ -139,6 +139,7 @@ class Database:
                     enabled BOOLEAN NOT NULL DEFAULT 1,
                     tags TEXT,
                     group_id INTEGER REFERENCES groups(id),
+                    webhook_id INTEGER,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
@@ -173,6 +174,7 @@ class Database:
             """)
 
         self._ensure_task_group_column()
+        self._ensure_task_webhook_column()
         default_group = self.ensure_default_group()
         self.backfill_task_groups(default_group["id"])
         self._ensure_task_group_foreign_key()
@@ -268,6 +270,13 @@ class Database:
         with self.transaction() as conn:
             conn.execute("ALTER TABLE tasks ADD COLUMN group_id INTEGER")
 
+    def _ensure_task_webhook_column(self) -> None:
+        if "webhook_id" in self._table_columns("tasks"):
+            return
+
+        with self.transaction() as conn:
+            conn.execute("ALTER TABLE tasks ADD COLUMN webhook_id INTEGER")
+
     def _task_group_has_foreign_key(self) -> bool:
         if not self._table_exists("tasks"):
             return False
@@ -294,6 +303,7 @@ class Database:
                     enabled BOOLEAN NOT NULL DEFAULT 1,
                     tags TEXT,
                     group_id INTEGER REFERENCES groups(id),
+                    webhook_id INTEGER,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
@@ -301,8 +311,8 @@ class Database:
             )
             conn.execute(
                 """
-                INSERT INTO tasks__migrated (id, title, message, url, cron_expression, channel, enabled, tags, group_id, created_at, updated_at)
-                SELECT id, title, message, url, cron_expression, channel, enabled, tags, group_id, created_at, updated_at
+                INSERT INTO tasks__migrated (id, title, message, url, cron_expression, channel, enabled, tags, group_id, webhook_id, created_at, updated_at)
+                SELECT id, title, message, url, cron_expression, channel, enabled, tags, group_id, webhook_id, created_at, updated_at
                 FROM tasks
                 """
             )
@@ -613,15 +623,24 @@ class Database:
 
         return normalized_group_id
 
+    def _normalize_task_webhook_id(self, webhook_id: Any) -> Optional[int]:
+        if webhook_id is None:
+            return None
+        try:
+            return int(webhook_id)
+        except (TypeError, ValueError):
+            return None
+
     def create_task(self, task: Dict[str, Any]) -> int:
         now = current_time_text()
         default_group_id = self.ensure_default_group()["id"]
         group_id = self._normalize_task_group_id(task.get("group_id", default_group_id), default_group_id)
+        webhook_id = self._normalize_task_webhook_id(task.get("webhook_id"))
 
         with self.transaction() as conn:
             cursor = conn.execute("""
-                INSERT INTO tasks (title, message, url, cron_expression, channel, enabled, tags, group_id, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO tasks (title, message, url, cron_expression, channel, enabled, tags, group_id, webhook_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 task["title"],
                 task.get("message", ""),
@@ -631,6 +650,7 @@ class Database:
                 task.get("enabled", True),
                 json.dumps(task.get("tags", [])),
                 group_id,
+                webhook_id,
                 now,
                 now
             ))
@@ -640,12 +660,13 @@ class Database:
         now = current_time_text()
         default_group_id = self.ensure_default_group()["id"]
         group_id = self._normalize_task_group_id(task.get("group_id", default_group_id), default_group_id)
+        webhook_id = self._normalize_task_webhook_id(task.get("webhook_id"))
 
         with self.transaction() as conn:
             cursor = conn.execute("""
                 UPDATE tasks
                 SET title = ?, message = ?, url = ?, cron_expression = ?,
-                    channel = ?, enabled = ?, tags = ?, group_id = ?, updated_at = ?
+                    channel = ?, enabled = ?, tags = ?, group_id = ?, webhook_id = ?, updated_at = ?
                 WHERE id = ?
             """, (
                 task["title"],
@@ -656,10 +677,33 @@ class Database:
                 task.get("enabled", True),
                 json.dumps(task.get("tags", [])),
                 group_id,
+                webhook_id,
                 now,
                 task_id
             ))
             return cursor.rowcount > 0
+
+    def backfill_webhook_task_targets(self, target_id: int, valid_ids: List[int]) -> int:
+        """把未指定或指向失效通道的 webhook 任务回填到指定通道。"""
+        valid_ids = [int(v) for v in valid_ids]
+        now = current_time_text()
+        with self.transaction() as conn:
+            if valid_ids:
+                marks = ",".join("?" * len(valid_ids))
+                cursor = conn.execute(f"""
+                    UPDATE tasks
+                    SET webhook_id = ?, updated_at = ?
+                    WHERE channel = 'webhook'
+                      AND (webhook_id IS NULL OR webhook_id NOT IN ({marks}))
+                """, [target_id, now] + valid_ids)
+            else:
+                cursor = conn.execute("""
+                    UPDATE tasks
+                    SET webhook_id = ?, updated_at = ?
+                    WHERE channel = 'webhook'
+                      AND (webhook_id IS NULL OR webhook_id != ?)
+                """, (target_id, now, target_id))
+            return cursor.rowcount
 
     def delete_task(self, task_id: int) -> bool:
         with self.transaction() as conn:
@@ -859,6 +903,7 @@ class Database:
                     normalized_group_id = default_group_id
 
                 imported_task["group_id"] = normalized_group_id
+                imported_task["webhook_id"] = self._normalize_task_webhook_id(imported_task.get("webhook_id"))
                 self.create_task(imported_task)
                 count += 1
             except Exception as e:
@@ -883,6 +928,10 @@ class Database:
         conn = self._get_conn()
         cursor = conn.execute("SELECT key, value FROM settings")
         return {row["key"]: row["value"] for row in cursor.fetchall()}
+
+    def delete_setting(self, key: str):
+        with self.transaction() as conn:
+            conn.execute("DELETE FROM settings WHERE key = ?", (key,))
 
     def init_default_settings(self, settings: Dict[str, Any]):
         """Initialize settings from dict structure"""
