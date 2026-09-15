@@ -249,7 +249,6 @@ def register_task_routes(
 
         return render_template(
             "calendar.html",
-            title="日历",
             year=year,
             month=month,
             weeks=weeks,

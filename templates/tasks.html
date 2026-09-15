@@ -17,8 +17,8 @@
 </section>
 
 <section class="panel data-panel">
-    <!-- 查询栏：输入防抖自动搜索，回车立即查询 -->
-    <form method="get" action="{{ url_for('tasks_page') }}" class="filter-bar" id="taskFilterForm">
+    <!-- 查询栏：输入防抖自动搜索，回车立即查询（提交走 fetch 局部刷新，跳过防重复提交守卫） -->
+    <form method="get" action="{{ url_for('tasks_page') }}" class="filter-bar" id="taskFilterForm" data-no-guard>
         {% if filter_tag %}<input type="hidden" name="tag" value="{{ filter_tag }}">{% endif %}
         <input type="search" name="q" id="taskSearchInput" value="{{ filter_q or '' }}" placeholder="搜索任务名称" enterkeyhint="search" aria-label="任务名称关键词">
         <select name="channel" data-auto-submit aria-label="渠道">
@@ -92,7 +92,8 @@
                 </label>
                 <label id="task-webhook-wrap" style="display:none">
                     <span><i class="ph ph-webhooks-logo"></i> Webhook 通道</span>
-                    <select name="webhook_id" id="task-webhook-id" disabled>
+                    <!-- 不用 disabled 控制提交：ui-select 不会同步程序改动的 disabled；隐藏字段的值后端会按渠道忽略 -->
+                    <select name="webhook_id" id="task-webhook-id">
                         {% for target in webhook_targets %}
                         <option value="{{ target.id }}">{{ target.name }}</option>
                         {% else %}
@@ -317,6 +318,7 @@ function openTaskModal(taskJson) {
 }
 
 function closeTaskModal() {
+    if (window.UISelect) { UISelect.closeAll(); }
     modalOverlay.classList.remove('is-open');
     document.body.classList.remove('modal-open');
     if (lastFocused) { lastFocused.focus(); }
@@ -338,9 +340,10 @@ var webhookWrap = document.getElementById('task-webhook-wrap');
 var webhookSelect = document.getElementById('task-webhook-id');
 
 function syncWebhookFieldVisibility() {
+    // 仅做显隐：隐藏字段的值提交后由后端按渠道忽略；
+    // 不切换 select.disabled，因为 ui-select 触发器不会同步程序设置的 disabled
     var isWebhook = taskChannelSelect.value === 'webhook';
     webhookWrap.style.display = isWebhook ? '' : 'none';
-    webhookSelect.disabled = !isWebhook;
 }
 taskChannelSelect.addEventListener('change', syncWebhookFieldVisibility);
 
@@ -368,17 +371,27 @@ function submitBatchAction(action, requiresConfirm) {
     var taskIds = getSelectedTaskIds();
     var actionLabels = { enable: '启用', disable: '停用', delete: '删除' };
     if (!taskIds.length) {
-        alert('请先选择至少一个任务');
+        UIDialog.alert({ title: '提示', message: '请先选择至少一个任务' });
         return;
     }
-    var confirmMessage = action === 'delete'
-        ? '确认删除选中的 ' + taskIds.length + ' 个任务？'
-        : '确认' + actionLabels[action] + '选中的 ' + taskIds.length + ' 个任务？';
-    if (requiresConfirm && !confirm(confirmMessage)) { return; }
 
-    document.getElementById('batchActionInput').value = action;
-    document.getElementById('batchTaskIdsInput').value = taskIds.join(',');
-    document.getElementById('batchActionForm').submit();
+    var apply = function () {
+        document.getElementById('batchActionInput').value = action;
+        document.getElementById('batchTaskIdsInput').value = taskIds.join(',');
+        document.getElementById('batchActionForm').submit();
+    };
+
+    if (!requiresConfirm) { apply(); return; }
+    UIDialog.confirm({
+        title: action === 'delete' ? '删除任务' : '批量' + actionLabels[action] + '任务',
+        message: action === 'delete'
+            ? '确认删除选中的 ' + taskIds.length + ' 个任务？'
+            : '确认' + actionLabels[action] + '选中的 ' + taskIds.length + ' 个任务？',
+        okText: action === 'delete' ? '删除' : '确认',
+        danger: action === 'delete'
+    }).then(function (ok) {
+        if (ok) { apply(); }
+    });
 }
 
 // ---------- 行内操作 ----------
@@ -396,7 +409,16 @@ function submitWithCsrf(actionUrl) {
 }
 
 function runTask(taskId) { submitWithCsrf('/tasks/' + taskId + '/run'); }
-function deleteTask(taskId) { submitWithCsrf('/tasks/' + taskId + '/delete'); }
+function deleteTask(taskId) {
+    UIDialog.confirm({
+        title: '删除任务',
+        message: '确认删除该任务？',
+        okText: '删除',
+        danger: true
+    }).then(function (ok) {
+        if (ok) { submitWithCsrf('/tasks/' + taskId + '/delete'); }
+    });
+}
 
 bindTaskListArea();
 </script>

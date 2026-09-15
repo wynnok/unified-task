@@ -50,7 +50,10 @@
                         <button type="button" class="row-action" title="编辑分组 {{ group.name }}" aria-label="编辑分组 {{ group.name }}" onclick="openGroupModal(this.closest('tr').dataset.group)">
                             <i class="ph ph-pencil-simple"></i>
                         </button>
-                        <form method="post" action="{{ url_for('delete_group_route', group_id=group.id) }}" class="group-delete-form inline-form" onsubmit="return confirm('确认删除分组「{{ group.name }}」？');">
+                        <form method="post" action="{{ url_for('delete_group_route', group_id=group.id) }}" class="group-delete-form inline-form"
+                              data-confirm="确认删除分组「{{ group.name }}」？"
+                              data-confirm-title="删除分组"
+                              data-confirm-ok="删除">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                             <button type="submit" class="row-action danger" title="删除分组 {{ group.name }}" aria-label="删除分组 {{ group.name }}">
                                 <i class="ph ph-trash"></i>
@@ -93,24 +96,11 @@
                 </label>
                 <label class="field-wide">
                     <span><i class="ph ph-smiley"></i> 图标</span>
-                    <div class="group-icon-select" data-icon-select id="group-icon-select">
-                        <button type="button" class="group-icon-trigger" aria-haspopup="listbox" aria-expanded="false">
-                            <span class="group-icon-trigger-content">
-                                <i class="ph ph-{{ icon_options[0].value }}"></i>
-                                <span>{{ icon_options[0].label }}</span>
-                            </span>
-                            <i class="ph ph-caret-down"></i>
-                        </button>
-                        <input type="hidden" name="icon" value="{{ icon_options[0].value }}" required>
-                        <div class="group-icon-menu" role="listbox">
-                            {% for option in icon_options %}
-                            <button type="button" class="group-icon-option{% if loop.first %} is-selected{% endif %}" role="option" data-icon-value="{{ option.value }}" data-icon-label="{{ option.label }}">
-                                <i class="ph ph-{{ option.value }}"></i>
-                                <span>{{ option.label }}</span>
-                            </button>
-                            {% endfor %}
-                        </div>
-                    </div>
+                    <select name="icon" id="group-icon" required>
+                        {% for option in icon_options %}
+                        <option value="{{ option.value }}" data-icon="{{ option.value }}">{{ option.label }}</option>
+                        {% endfor %}
+                    </select>
                 </label>
             </div>
             <div class="modal-footer">
@@ -133,44 +123,14 @@ function filterGroups(keyword) {
     });
 }
 
-// ---------- 图标选择器 ----------
-var iconSelectRoot = document.getElementById('group-icon-select');
-var iconHiddenInput = iconSelectRoot.querySelector('input[name="icon"]');
-var iconTrigger = iconSelectRoot.querySelector('.group-icon-trigger');
-var iconOptions = Array.from(iconSelectRoot.querySelectorAll('.group-icon-option'));
-
-function setGroupIcon(value, label) {
-    iconHiddenInput.value = value;
-    iconOptions.forEach(function (item) {
-        var selected = item.dataset.iconValue === value;
-        item.classList.toggle('is-selected', selected);
-        item.setAttribute('aria-selected', selected ? 'true' : 'false');
+// ---------- 图标选择（由 ui-select 统一渲染，这里只处理回显） ----------
+function setGroupIcon(value) {
+    var iconSelect = document.getElementById('group-icon');
+    var hasOption = Array.prototype.some.call(iconSelect.options, function (option) {
+        return option.value === value;
     });
-    iconTrigger.querySelector('.group-icon-trigger-content').innerHTML =
-        '<i class="ph ph-' + value + '"></i><span>' + label + '</span>';
+    iconSelect.value = hasOption ? value : iconSelect.options[0].value;
 }
-
-iconTrigger.addEventListener('click', function (event) {
-    event.preventDefault();
-    var isOpen = iconSelectRoot.classList.toggle('is-open');
-    iconTrigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-});
-
-iconOptions.forEach(function (option) {
-    option.addEventListener('click', function (event) {
-        event.preventDefault();
-        setGroupIcon(option.dataset.iconValue, option.dataset.iconLabel);
-        iconSelectRoot.classList.remove('is-open');
-        iconTrigger.setAttribute('aria-expanded', 'false');
-    });
-});
-
-document.addEventListener('click', function (event) {
-    if (iconSelectRoot.classList.contains('is-open') && !iconSelectRoot.contains(event.target)) {
-        iconSelectRoot.classList.remove('is-open');
-        iconTrigger.setAttribute('aria-expanded', 'false');
-    }
-});
 
 // ---------- 新建 / 编辑模态框 ----------
 var modalOverlay = document.getElementById('group-modal');
@@ -187,14 +147,13 @@ function openGroupModal(groupJson) {
         modalTitle.textContent = '编辑分组';
         document.getElementById('group-name').value = group.name;
         document.getElementById('group-sort').value = group.sort_order;
-        var option = iconOptions.find(function (item) { return item.dataset.iconValue === group.icon; });
-        setGroupIcon(group.icon, option ? option.dataset.iconLabel : group.icon);
+        setGroupIcon(group.icon);
     } else {
         modalForm.setAttribute('action', createActionUrl);
         modalTitle.textContent = '新建分组';
         modalForm.reset();
         document.getElementById('group-sort').value = '10';
-        setGroupIcon('{{ icon_options[0].value }}', '{{ icon_options[0].label }}');
+        setGroupIcon('{{ icon_options[0].value }}');
     }
     modalOverlay.classList.add('is-open');
     document.body.classList.add('modal-open');
@@ -202,6 +161,7 @@ function openGroupModal(groupJson) {
 }
 
 function closeGroupModal() {
+    if (window.UISelect) { UISelect.closeAll(); }
     modalOverlay.classList.remove('is-open');
     document.body.classList.remove('modal-open');
     if (lastFocused) { lastFocused.focus(); }
