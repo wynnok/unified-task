@@ -7,6 +7,8 @@ import os
 import re
 import secrets
 import smtplib
+import threading
+import time
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -417,9 +419,17 @@ def send_email(
         db=db,
     )
 
-    with smtplib.SMTP_SSL(smtp["server"], int(smtp["port"]), timeout=10) as server:
+    server = smtplib.SMTP_SSL(smtp["server"], int(smtp["port"]), timeout=10)
+    try:
         server.login(smtp["user"], smtp["password"])
         server.sendmail(smtp["sender"], smtp["receiver"], message.as_string())
+    finally:
+        # sendmail 正常返回即代表服务器已接收邮件（250）；126 投出后会直接断开
+        # 连接，会话收尾(QUIT)失败只影响连接释放，不能推翻一次成功的投递。
+        try:
+            server.quit()
+        except Exception:
+            server.close()
 
 
 WEBHOOK_METHODS = ("get", "post_json", "post_form")
@@ -588,6 +598,31 @@ def send_webhook(task: Dict[str, Any], settings: Dict[str, Any]) -> None:
         raise RuntimeError(f"Webhook failed with status={response.status_code}")
 
 
+# ---- 投递韧性（并发闸门 + 瞬时超时重试）----
+# 所有 email 任务常在同一整点同时触发；一秒内向同一 SMTP 服务器发起 10+ 个
+# 并发 TLS 连接容易触发其反垃圾限流，表现为握手/读取停滞直至超时
+# （"The handshake operation timed out"、"Connection unexpectedly closed:
+# The read operation timed out"）。用信号量把实际发送并发压到上限以内。
+_MAX_CONCURRENT_CHANNEL_SENDS = 2
+_channel_send_gate = threading.Semaphore(_MAX_CONCURRENT_CHANNEL_SENDS)
+
+# 派发发送的总尝试次数与瞬时异常重试间隔。重试仅针对超时/连接类瞬时异常；
+# 若首次发送实际已投出但对端响应超时，重试可能造成重复提醒——对个人提醒
+# 场景，这比整次提醒丢失更可接受。
+SEND_ATTEMPTS = 2
+_SEND_RETRY_DELAY_SECONDS = 3.0
+
+_TRANSIENT_SEND_ERRORS = (
+    smtplib.SMTPServerDisconnected,
+    smtplib.SMTPConnectError,
+    # OSError 覆盖 TimeoutError / ssl.SSLError / ConnectionError / gaierror
+    # 以及 errno 101 ENETUNREACH 等全部网络层瞬时错误（线上实测 101 是裸
+    # OSError，不在 ConnectionError 覆盖范围内；requests 的
+    # Timeout/ConnectionError 也继承自 OSError）。
+    OSError,
+)
+
+
 def backfill_webhook_task_targets(db: Database) -> None:
     """仅有一个 Webhook 通道时，把未指定或指向失效通道的 webhook 任务回填到该通道。
 
@@ -720,14 +755,35 @@ def create_app() -> Flask:
         )
         try:
             channel = task.get("channel")
-            if channel == "email":
-                send_email(task, settings, db=db)
-            elif channel == "webhook":
-                send_webhook(task, settings)
+            last_error: Optional[BaseException] = None
+            for attempt in range(1, SEND_ATTEMPTS + 1):
+                try:
+                    with _channel_send_gate:
+                        if channel == "email":
+                            send_email(task, settings, db=db)
+                        elif channel == "webhook":
+                            send_webhook(task, settings)
+                        else:
+                            raise RuntimeError(f"Unsupported channel: {channel}")
+                    last_error = None
+                    break
+                except _TRANSIENT_SEND_ERRORS as exc:
+                    last_error = exc
+                    if attempt < SEND_ATTEMPTS:
+                        logging.warning(
+                            "Task id=%s transient send failure (attempt %d/%d), retrying: %s",
+                            task_id, attempt, SEND_ATTEMPTS, exc,
+                        )
+                        time.sleep(_SEND_RETRY_DELAY_SECONDS)
+            if last_error is None:
+                set_task_runtime(task_id, "success", None)
+                logging.info("Task id=%s completed", task_id)
             else:
-                raise RuntimeError(f"Unsupported channel: {channel}")
-            set_task_runtime(task_id, "success", None)
-            logging.info("Task id=%s completed", task_id)
+                set_task_runtime(task_id, "failed", str(last_error))
+                logging.error(
+                    "Task id=%s failed after %d attempts: %s",
+                    task_id, SEND_ATTEMPTS, last_error, exc_info=last_error,
+                )
         except Exception as exc:
             set_task_runtime(task_id, "failed", str(exc))
             logging.exception("Task id=%s failed: %s", task_id, exc)
