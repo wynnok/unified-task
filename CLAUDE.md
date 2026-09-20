@@ -99,4 +99,4 @@ docker compose up -d
 - For code that imports `app`, be aware that `app = create_app()` is executed at import time; tests avoid side effects with environment monkeypatching before import.
 - Database methods normalize missing or invalid `group_id` values to the default group, but HTTP task forms require an existing group ID and reject invalid submissions.
 - Task import uses `Database.import_tasks()` and then `sync_all_jobs()`. Imported task group IDs are normalized to the default group when missing or invalid.
-- Email rendering replaces `{var_monthly_count}` only during real task dispatch when a database and task ID are available; test email sends pass `db=None` and preserve placeholders.
+- Task messages use `{{var_monthly_count}}` (double braces, consistent with webhook templates); it renders during real task dispatch for both the email and webhook channels when a database and task ID are available; test sends pass `db=None` and preserve placeholders.

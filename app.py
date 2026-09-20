@@ -275,7 +275,7 @@ def expand_cron_occurrences(
     return results
 
 
-VAR_PLACEHOLDER_PATTERN = re.compile(r"\{(var[a-zA-Z0-9_]*)\}")
+VAR_PLACEHOLDER_PATTERN = re.compile(r"\{\{(var[a-zA-Z0-9_]*)\}\}")
 
 
 def render_task_message(
@@ -455,10 +455,11 @@ _WEBHOOK_SAMPLE_VARS = {
 }
 
 
-def build_webhook_vars(task: Dict[str, Any]) -> Dict[str, str]:
+def build_webhook_vars(task: Dict[str, Any], db: Optional[Database] = None) -> Dict[str, str]:
     return {
         "title": str(task.get("title", "") or ""),
-        "content": str(task.get("message", "") or ""),
+        # 与邮件通道一致，content 先渲染 {{var_monthly_count}} 等任务占位符。
+        "content": render_task_message(task, db=db),
         "url": str(task.get("url", "") or ""),
         "time": now_text(),
     }
@@ -564,7 +565,7 @@ def _resolve_webhook_target(task: Dict[str, Any], targets: List[Dict[str, Any]])
     return targets[0]
 
 
-def send_webhook(task: Dict[str, Any], settings: Dict[str, Any]) -> None:
+def send_webhook(task: Dict[str, Any], settings: Dict[str, Any], db: Optional[Database] = None) -> None:
     targets = (settings.get("webhook") or {}).get("targets") or []
     if not targets:
         raise RuntimeError("Webhook 通道未配置，请先在设置页添加")
@@ -578,16 +579,16 @@ def send_webhook(task: Dict[str, Any], settings: Dict[str, Any]) -> None:
 
     method = target.get("method") or "get"
     template = str(target.get("template", "") or "")
-    vars = build_webhook_vars(task)
+    webhook_vars = build_webhook_vars(task, db=db)
 
     if method == "get":
-        final_url = render_webhook_url(url, vars)
-        query = render_webhook_query(template, vars)
+        final_url = render_webhook_url(url, webhook_vars)
+        query = render_webhook_query(template, webhook_vars)
         if query:
             final_url += ("&" if "?" in final_url else "?") + query
         response = requests.get(final_url, timeout=10)
     elif method == "post_json":
-        body = render_webhook_json_body(template, vars)
+        body = render_webhook_json_body(template, webhook_vars)
         response = requests.post(
             url,
             data=body.encode("utf-8"),
@@ -595,7 +596,7 @@ def send_webhook(task: Dict[str, Any], settings: Dict[str, Any]) -> None:
             timeout=10,
         )
     elif method == "post_form":
-        body = render_webhook_form_body(template, vars)
+        body = render_webhook_form_body(template, webhook_vars)
         response = requests.post(
             url,
             data=body.encode("utf-8"),
@@ -787,7 +788,7 @@ def create_app() -> Flask:
                         if channel == "email":
                             send_email(task, settings, db=db)
                         elif channel == "webhook":
-                            send_webhook(task, settings)
+                            send_webhook(task, settings, db=db)
                         else:
                             raise RuntimeError(f"Unsupported channel: {channel}")
                     last_error = None
