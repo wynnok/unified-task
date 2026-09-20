@@ -419,7 +419,18 @@ def send_email(
         db=db,
     )
 
-    server = smtplib.SMTP_SSL(smtp["server"], int(smtp["port"]), timeout=10)
+    port = int(smtp["port"])
+    timeout = int(smtp.get("timeout") or SMTP_CONNECT_TIMEOUT_SECONDS)
+    if port == SMTP_SSL_PORT:
+        server = smtplib.SMTP_SSL(smtp["server"], port, timeout=timeout)
+    else:
+        # 25 等明文端口：先建立连接再升级 STARTTLS；465 被对端限流时可改用。
+        server = smtplib.SMTP(smtp["server"], port, timeout=timeout)
+        try:
+            server.starttls()
+        except Exception:
+            server.close()
+            raise
     try:
         server.login(smtp["user"], smtp["password"])
         server.sendmail(smtp["sender"], smtp["receiver"], message.as_string())
@@ -622,6 +633,20 @@ _TRANSIENT_SEND_ERRORS = (
     OSError,
 )
 
+# SMTP 连接参数：126 仅开放 25(明文,可 STARTTLS 升级)与 465(SSL)，587 并不
+# 提供服务。默认握手/读超时从 10s 放宽到 20s，给被限流时的慢响应留出机会；
+# 可在 settings 表加 smtp.timeout（整数秒）覆盖默认值。
+SMTP_SSL_PORT = 465
+SMTP_CONNECT_TIMEOUT_SECONDS = 20
+
+
+def cron_second_offset(task_id: int) -> int:
+    """任务恒定秒级偏移(0-59)：错开整点触发风暴，同 ID 恒定、不同 ID 不重合。
+
+    注意：任务列表的“下次执行时间”预览与日历仍按整点展示，实际触发带该偏移。
+    """
+    return (int(task_id) * 7) % 60
+
 
 def backfill_webhook_task_targets(db: Database) -> None:
     """仅有一个 Webhook 通道时，把未指定或指向失效通道的 webhook 任务回填到该通道。
@@ -807,6 +832,9 @@ def create_app() -> Flask:
             return
         try:
             trigger_args = validate_cron_expression(task["cron_expression"])
+            if "second" not in trigger_args:
+                # 错峰：避免所有任务在同一整点秒级并发触发（6 段表达式自带秒则尊重原值）
+                trigger_args["second"] = cron_second_offset(task["id"])
             scheduler.add_job(
                 dispatch_task,
                 trigger="cron",
