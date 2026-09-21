@@ -1677,6 +1677,57 @@ button:focus-visible,
         grid-template-columns: 1fr;
     }
 
+    /* 设置页：Webhook 通道卡片头部换行，名称独占一行 */
+    .settings-section-card {
+        padding: var(--space-4);
+    }
+
+    .webhook-target-head {
+        flex-wrap: wrap;
+        gap: var(--space-2) var(--space-3);
+    }
+
+    .webhook-target-head .webhook-field-grow {
+        flex: 1 1 100%;
+    }
+
+    .webhook-target-head .webhook-field-method {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .webhook-field-method .target-method {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .webhook-target-head .target-remove {
+        flex: 0 0 auto;
+        margin-left: auto;
+    }
+
+    /* 设置页：连通性测试纵向堆叠，避免横向溢出 */
+    .settings-test-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .settings-test-actions form {
+        flex: 1 1 auto;
+        flex-wrap: wrap;
+    }
+
+    .settings-test-actions .btn-secondary-action {
+        flex: 1 1 100%;
+        min-width: 0;
+    }
+
+    .webhook-test-form select {
+        flex: 1 1 100%;
+        width: 100%;
+        min-width: 0;
+    }
+
     .page-toolbar {
         align-items: flex-start;
     }
