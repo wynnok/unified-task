@@ -111,4 +111,7 @@ Do not commit real secrets or runtime data under `data/`.
 
 - Enabled tasks with valid cron expressions are loaded into APScheduler automatically.
 - Each execution writes a success/failure record to `execution_history`.
+- Each task dispatch makes one email or webhook send attempt, with no automatic retry after an error. A timeout or disconnect can occur after the receiver has accepted the message, so retrying the entire send could create duplicate reminders.
+- Send concurrency remains limited to two, and scheduled tasks retain their existing second-level staggering. SMTP uses a finite connection timeout; a failed session teardown after an acknowledged send does not invalidate that delivery.
+- A failed execution means delivery was not confirmed, not necessarily that the reminder was not received. Check the receiver before manually running the task again. A later scheduled trigger is a separate execution, not a retry.
 - Session timeout is checked on authenticated requests.
