@@ -67,6 +67,7 @@
                         <div class="row-title-cell">
                             <strong class="row-title">{{ task.title }}</strong>
                             <div class="row-meta">
+                                <span class="row-sub" title="任务 ID">#{{ task.id }}</span>
                                 <span class="group-badge small">
                                     <i class="ph ph-{{ task.group_icon or 'folder' }}"></i>
                                     {{ task.group_name or '默认' }}
