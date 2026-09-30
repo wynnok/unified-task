@@ -1,12 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="panel">
-    <div class="panel-header panel-header-stack">
-        <div>
-            <h2><i class="ph ph-sliders-horizontal"></i> 发送配置</h2>
-            <p class="panel-description">统一维护登录、邮件和 Webhook 配置。</p>
-        </div>
+<section class="page-toolbar">
+    <div>
+        <h2 class="page-title"><i class="ph ph-sliders-horizontal"></i> 发送配置</h2>
+        <p class="page-subtitle">统一维护登录、邮件和 Webhook 配置。</p>
     </div>
+</section>
     <form method="post" action="{{ url_for('save_settings_route') }}" class="settings-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
@@ -89,7 +88,6 @@
             </button>
         </div>
     </form>
-</section>
 
 <section class="panel settings-test-panel">
     <div class="panel-header panel-header-stack">

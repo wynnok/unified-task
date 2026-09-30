@@ -5,17 +5,19 @@
 {% set failed_runs = history|selectattr('status', 'equalto', 'failed')|list|length %}
 {% set failed_history = history|selectattr('status', 'equalto', 'failed')|list %}
 
-<section class="panel">
-    <div class="panel-header panel-header-stack">
-        <div>
-            <h2><i class="ph ph-clock-counter-clockwise"></i> 执行历史</h2>
-            <p class="panel-description">查看任务最近 100 次执行结果，快速判断是否稳定、是否存在连续失败。</p>
-        </div>
+<section class="page-toolbar">
+    <div>
+        <h2 class="page-title"><i class="ph ph-clock-counter-clockwise"></i> 执行历史</h2>
+        <p class="page-subtitle">查看任务最近 100 次执行结果，快速判断是否稳定、是否存在连续失败。</p>
+    </div>
+    <div class="page-toolbar-actions">
         <a class="btn-link" href="{{ url_for('tasks_page') }}">
             <i class="ph ph-arrow-left"></i> 返回任务列表
         </a>
     </div>
+</section>
 
+<section class="panel">
     <div class="status-row history-summary-row">
         <div class="history-task-heading">
             <strong>#{{ task.id }}</strong>
@@ -42,7 +44,7 @@
             <span class="history-stat-label">最近记录数</span>
             <strong>{{ total_runs }}</strong>
         </article>
-        <article class="history-stat-card">
+        <article class="history-stat-card history-stat-card-success">
             <span class="history-stat-label">成功次数</span>
             <strong>{{ success_runs }}</strong>
         </article>

@@ -1,30 +1,33 @@
 {% extends "base.html" %}
 
 {% block content %}
+<section class="page-toolbar">
+    <div>
+        <h2 class="page-title"><i class="ph ph-calendar-blank"></i> 日历</h2>
+        <p class="page-subtitle">启用任务的未来触发计划，只读展示；点任务名查看执行历史，点“更多”浮层查看当天全部触发。</p>
+    </div>
+    <div class="page-toolbar-actions calendar-nav">
+        {% if has_prev %}
+        <a class="btn-link" href="{{ url_for('calendar_page', year=prev_year, month=prev_month) }}">
+            <i class="ph ph-caret-left"></i> 上个月
+        </a>
+        {% endif %}
+        <strong class="calendar-title">{{ year }} 年 {{ month }} 月</strong>
+        {% if has_next %}
+        <a class="btn-link" href="{{ url_for('calendar_page', year=next_year, month=next_month_num) }}">
+            下个月 <i class="ph ph-caret-right"></i>
+        </a>
+        {% endif %}
+        <a class="btn-link" href="{{ url_for('calendar_page') }}">
+            <i class="ph ph-arrow-counter-clockwise"></i> 本月
+        </a>
+    </div>
+</section>
+
 <section class="panel calendar-panel">
-    <div class="panel-header panel-header-stack">
-        <div>
-            <h2><i class="ph ph-calendar-blank"></i> 日历
-                <span class="panel-badge">{{ upcoming|length }} 个触发点</span>
-            </h2>
-            <p class="panel-description">启用任务的未来触发计划，只读展示；点任务名查看执行历史，点“更多”浮层查看当天全部触发。</p>
-        </div>
-        <div class="dashboard-hero-actions calendar-nav">
-            {% if has_prev %}
-            <a class="btn-link" href="{{ url_for('calendar_page', year=prev_year, month=prev_month) }}">
-                <i class="ph ph-caret-left"></i> 上个月
-            </a>
-            {% endif %}
-            <strong class="calendar-title">{{ year }} 年 {{ month }} 月</strong>
-            {% if has_next %}
-            <a class="btn-link" href="{{ url_for('calendar_page', year=next_year, month=next_month_num) }}">
-                下个月 <i class="ph ph-caret-right"></i>
-            </a>
-            {% endif %}
-            <a class="btn-link" href="{{ url_for('calendar_page') }}">
-                <i class="ph ph-arrow-counter-clockwise"></i> 本月
-            </a>
-        </div>
+    <div class="panel-header">
+        <h2><i class="ph ph-calendar-check"></i> 触发计划</h2>
+        <span class="panel-badge">{{ upcoming|length }} 个触发点</span>
     </div>
 
     <!-- 桌面端：月历网格 -->

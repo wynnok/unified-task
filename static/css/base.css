@@ -53,17 +53,19 @@
     --info-600: #2563eb;
 
     /* 语义化颜色 */
-    --bg: #f4f6fb;
+    --bg: #edf2f7;
     --card: #ffffff;
-    --card-hover: #f8fbff;
+    --card-hover: #f2f7fc;
+    --surface-subtle: #f5f8fc;
+    --nav-bg: #152238;
     --text: var(--slate-800);
     --text-light: var(--slate-500);
-    --text-muted: var(--slate-400);
-    --border: var(--slate-200);
-    --border-light: #edf1f7;
+    --text-muted: var(--slate-500);
+    --border: #d6e0ec;
+    --border-light: #e5ecf4;
 
-    --primary: var(--primary-500);
-    --primary-hover: var(--primary-600);
+    --primary: var(--primary-600);
+    --primary-hover: var(--primary-700);
     --primary-light: var(--primary-100);
     --primary-soft: var(--primary-50);
 
@@ -76,8 +78,8 @@
 
     /* ========== 阴影系统 (5 级) ========== */
     --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
-    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.05);
-    --shadow: 0 2px 4px rgba(15, 23, 42, 0.04), 0 4px 12px -2px rgba(15, 23, 42, 0.06);
+    --shadow-sm: 0 2px 4px rgba(25, 45, 75, 0.04), 0 8px 20px -12px rgba(25, 45, 75, 0.18);
+    --shadow: 0 2px 6px rgba(25, 45, 75, 0.04), 0 12px 28px -12px rgba(25, 45, 75, 0.18);
     --shadow-lg: 0 4px 8px rgba(15, 23, 42, 0.04), 0 12px 28px -6px rgba(15, 23, 42, 0.1);
     --shadow-xl: 0 8px 16px rgba(15, 23, 42, 0.06), 0 24px 48px -8px rgba(15, 23, 42, 0.14);
 
@@ -143,11 +145,7 @@ body {
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "Noto Sans SC", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
     color: var(--text);
-    background:
-        radial-gradient(1100px 520px at 85% -12%, rgba(14, 165, 233, 0.07), transparent 62%),
-        radial-gradient(900px 480px at -10% 108%, rgba(99, 102, 241, 0.05), transparent 58%),
-        var(--bg);
-    background-attachment: fixed;
+    background: var(--bg);
     min-height: 100vh;
     line-height: 1.6;
     letter-spacing: 0.01em;

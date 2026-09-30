@@ -55,13 +55,15 @@
             '    </select></label>',
             '  <button type="button" class="btn-link danger-text target-remove" aria-label="删除通道"><i class="ph ph-trash"></i> 删除</button>',
             '</div>',
+            '<div class="webhook-target-body">',
             '<label class="webhook-field"><span>Webhook 地址</span>',
             '  <input type="text" class="target-url" placeholder="https://example.com/hook"></label>',
             '<label class="webhook-field"><span class="target-template-label">请求模板</span>',
             '  <textarea class="target-template" rows="3"></textarea></label>',
             '<label class="webhook-field"><span>备注（可选）</span>',
             '  <input type="text" class="target-note" placeholder="选填，方便区分用途"></label>',
-            '<div class="webhook-method-hint"></div>'
+            '<div class="webhook-method-hint"></div>',
+            '</div>'
         ].join("");
 
         row.querySelector(".target-name").value = (target && target.name) || "";

@@ -21,7 +21,7 @@
 </section>
 
 <section class="stat-grid">
-    <article class="stat-card">
+    <article class="stat-card stat-card-primary">
         <span class="stat-icon primary"><i class="ph ph-clipboard-text"></i></span>
         <div class="stat-body">
             <span class="stat-label">任务总数</span>
@@ -51,7 +51,7 @@
             {% endif %}
         </div>
     </article>
-    <article class="stat-card">
+    <article class="stat-card {{ 'stat-card-danger' if failed_now else '' }}">
         <span class="stat-icon {{ 'danger' if failed_now else 'muted' }}"><i class="ph ph-warning-octagon"></i></span>
         <div class="stat-body">
             <span class="stat-label">需要关注</span>
